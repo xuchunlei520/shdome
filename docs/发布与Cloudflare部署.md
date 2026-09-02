@@ -4,7 +4,7 @@ Cloudflare 只提供短域名和小型引导脚本，应用程序发布包仍保
 
 ## 1. 构建固定版本
 
-在 Linux CI 或开发机执行：
+在 Git 工作区内的 Linux CI 或开发机执行（构建环境需要 Git）：
 
 ```bash
 bash scripts/build-release.sh v0.1.0

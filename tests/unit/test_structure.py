@@ -60,6 +60,11 @@ class StructureTests(unittest.TestCase):
         self.assertIn('exec sudo -H -- "$SHDOME_SOURCE_DIR/shdome.sh" "$@"', config)
         self.assertIn("state_storage_require_readable", state)
 
+    def test_release_builder_only_copies_tracked_files(self):
+        builder = (ROOT / "scripts/build-release.sh").read_text(encoding="utf-8")
+        self.assertIn("git -C \"$PROJECT_DIR\" ls-files -z", builder)
+        self.assertNotIn('cp -a "$PROJECT_DIR/src"', builder)
+
 
 if __name__ == "__main__":
     unittest.main()

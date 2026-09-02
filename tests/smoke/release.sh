@@ -5,7 +5,9 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 VERSION="v0.0.0-test"
 ARCHIVE="$PROJECT_DIR/dist/shdome-$VERSION.tar.gz"
 TEST_ROOT="$(mktemp -d /tmp/shdome-release-test.XXXXXX)"
-trap 'rm -rf -- "$TEST_ROOT"' EXIT
+UNTRACKED_RELEASE_FIXTURE="$(mktemp "$PROJECT_DIR/bootstrap/.release-secret.XXXXXX")"
+trap 'rm -f -- "$UNTRACKED_RELEASE_FIXTURE"; rm -rf -- "$TEST_ROOT"' EXIT
+printf 'must-not-be-packaged\n' >"$UNTRACKED_RELEASE_FIXTURE"
 
 bash "$PROJECT_DIR/scripts/build-release.sh" "$VERSION" >/dev/null
 [[ -s "$ARCHIVE" && -s "$ARCHIVE.sha256" ]]
@@ -13,6 +15,10 @@ read -r checksum_name checksum_extra < <(awk '{print $2, $3}' "$ARCHIVE.sha256")
 [[ "$checksum_name" == "$(basename "$ARCHIVE")" && -z "$checksum_extra" ]]
 [[ "$checksum_name" != */* ]]
 (cd "$(dirname "$ARCHIVE")" && sha256sum -c "$(basename "$ARCHIVE").sha256") >/dev/null
+if tar -tzf "$ARCHIVE" | grep -Eq '/bootstrap/(\.wrangler/|wrangler\.toml$|\.release-secret\.)'; then
+    printf '发布包包含未跟踪的本地配置或临时文件\n' >&2
+    exit 1
+fi
 (
     export SHDOME_INSTALLER_LIBRARY_ONLY=1
     # shellcheck source=/dev/null

@@ -13,9 +13,29 @@ TEMP_DIR="$(mktemp -d /tmp/shdome-build.XXXXXX)"
 trap 'rm -rf -- "$TEMP_DIR"' EXIT
 PACKAGE_ROOT="$TEMP_DIR/shdome-$VERSION"
 
+command -v git >/dev/null 2>&1 || {
+    printf '构建发布包需要 git\n' >&2
+    exit 69
+}
+git -C "$PROJECT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+    printf '发布包必须从 Git 工作区构建\n' >&2
+    exit 69
+}
+
 mkdir -p "$DIST_DIR" "$PACKAGE_ROOT"
-cp -a "$PROJECT_DIR/src" "$PROJECT_DIR/catalog" "$PROJECT_DIR/bin" "$PROJECT_DIR/bootstrap" "$PACKAGE_ROOT/"
-cp "$PROJECT_DIR/README.md" "$PROJECT_DIR/开发文档.md" "$PROJECT_DIR/功能文档.md" "$PROJECT_DIR/使用文档.md" "$PACKAGE_ROOT/"
+while IFS= read -r -d '' relative_path; do
+    target_path="$PACKAGE_ROOT/$relative_path"
+    mkdir -p "$(dirname "$target_path")"
+    cp -a -- "$PROJECT_DIR/$relative_path" "$target_path"
+done < <(git -C "$PROJECT_DIR" ls-files -z -- \
+    src catalog bin bootstrap README.md 开发文档.md 功能文档.md 使用文档.md)
+
+for required_path in bin/k src/shdome.sh bootstrap/install.sh bootstrap/worker.js bootstrap/wrangler.toml.example; do
+    [[ -f "$PACKAGE_ROOT/$required_path" ]] || {
+        printf '发布包缺少已跟踪文件：%s\n' "$required_path" >&2
+        exit 66
+    }
+done
 chmod 755 "$PACKAGE_ROOT/bin/k" "$PACKAGE_ROOT/src/shdome.sh" "$PACKAGE_ROOT/bootstrap/install.sh"
 sed -i "s/^SHDOME_VERSION=.*/SHDOME_VERSION=\"${VERSION#v}\"/" "$PACKAGE_ROOT/src/core/config.sh"
 sed -i "s|^    : \"\${SHDOME_RELEASE_VERSION:=.*}\"$|    : \"\${SHDOME_RELEASE_VERSION:=$VERSION}\"|" "$PACKAGE_ROOT/src/core/config.sh"
