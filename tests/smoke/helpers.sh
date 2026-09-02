@@ -36,11 +36,52 @@ if catalog_resolve_selector does-not-exist >/dev/null 2>&1; then exit 1; fi
     # shellcheck disable=SC2317
     app_list() { return 0; }
     # shellcheck disable=SC2317
-    state_exists() { [[ "$1" == "uptime-kuma" ]]; }
-    # shellcheck disable=SC2317
     app_manage_menu() { managed_app="$1"; }
     app_market_menu >/dev/null
     [[ "$managed_app" == "uptime-kuma" ]]
+)
+(
+    selections=(1 2 3 5 6 7 8 0)
+    selection_index=0
+    action_file="$TEST_ROOT/app-menu-actions"
+    # shellcheck disable=SC2317
+    terminal_read() {
+        local target_variable="$1"
+        printf -v "$target_variable" '%s' "${selections[$selection_index]}"
+        selection_index=$((selection_index + 1))
+    }
+    # shellcheck disable=SC2317
+    terminal_pause() { :; }
+    # shellcheck disable=SC2317
+    app_runtime_status() { printf '运行中'; }
+    # shellcheck disable=SC2317
+    state_exists() { return 0; }
+    # shellcheck disable=SC2317
+    state_get() {
+        case "$2" in
+            domain) printf 'app.example.com' ;;
+            accessMode) printf 'domain_only' ;;
+        esac
+    }
+    # shellcheck disable=SC2317
+    app_install() { printf 'install:%s\n' "$*" >>"$action_file"; }
+    # shellcheck disable=SC2317
+    app_update() { printf 'update:%s\n' "$*" >>"$action_file"; }
+    # shellcheck disable=SC2317
+    app_remove() { printf 'remove:%s\n' "$*" >>"$action_file"; }
+    # shellcheck disable=SC2317
+    app_domain() { printf 'domain:%s\n' "$*" >>"$action_file"; }
+    # shellcheck disable=SC2317
+    app_access_mode() { printf 'access:%s\n' "$*" >>"$action_file"; }
+    app_manage_menu uptime-kuma >/dev/null
+    diff -u <(printf '%s\n' \
+        'install:uptime-kuma' \
+        'update:uptime-kuma' \
+        'remove:uptime-kuma' \
+        'domain:uptime-kuma --configure --access domain-only' \
+        'domain:uptime-kuma --remove' \
+        'access:uptime-kuma direct' \
+        'access:uptime-kuma domain-only') "$action_file"
 )
 test_future_menu_handler() { :; }
 menu_register 20 "测试系统模块" test_future_menu_handler

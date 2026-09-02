@@ -30,13 +30,22 @@ class StructureTests(unittest.TestCase):
             (ROOT / "src/core/router.sh").read_text(encoding="utf-8"),
         )
 
-    def test_market_uses_number_name_and_description_without_id_column(self):
+    def test_market_uses_single_app_action_entry_without_id_column(self):
         catalog = (ROOT / "src/modules/app_market/catalog.sh").read_text(encoding="utf-8")
         menu = (ROOT / "src/modules/app_market/menu.sh").read_text(encoding="utf-8")
         self.assertIn("catalog_resolve_selector", catalog)
         self.assertIn("'序号' '名称' '版本' '状态' '说明'", catalog)
         self.assertNotIn("'应用 ID' '名称' '版本' '状态'", catalog)
-        self.assertIn("输入序号或名称查看/管理应用", menu)
+        self.assertIn("输入序号、应用 ID 或名称", menu)
+        for removed_entry in ("i. 安装应用", "s. 搜索应用", "c. 按分类浏览"):
+            self.assertNotIn(removed_entry, menu)
+        for action in (
+            "1. 安装", "2. 更新", "3. 卸载", "5. 添加域名访问",
+            "6. 删除域名访问", "7. 允许IP+端口访问", "8. 阻止IP+端口访问",
+            "0. 返回上一级选单",
+        ):
+            self.assertIn(action, menu)
+        self.assertIn('app_domain "$app_id" --configure --access domain-only', menu)
         self.assertNotIn("installed_apps_menu()", menu)
 
     def test_entrypoint_discovers_business_modules(self):

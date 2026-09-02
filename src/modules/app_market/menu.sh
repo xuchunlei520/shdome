@@ -1,46 +1,20 @@
 #!/usr/bin/env bash
 
 app_market_menu() {
-    local choice selector app_id
+    local choice app_id
     while true; do
         printf '\n应用市场\n%s\n' '--------------------------------'
         app_list
         printf '%s\n' '--------------------------------'
-        printf '%s\n' 'i. 安装应用' 's. 搜索应用' 'c. 按分类浏览' '0. 返回'
-        terminal_read choice "输入序号或名称查看/管理应用: " ""
+        printf '%s\n' '0. 返回上一级选单' '--------------------------------'
+        terminal_read choice "输入序号、应用 ID 或名称: " ""
         case "$choice" in
             0) return 0 ;;
-            i)
-                terminal_read selector "请输入应用序号或名称: " ""
-                if ! app_id="$(catalog_resolve_selector "$selector")"; then
-                    warn "找不到应用：$selector"
-                    terminal_pause
-                    continue
-                fi
-                app_install "$app_id" || true
-                terminal_pause
-                ;;
-            s)
-                terminal_read app_id "请输入关键词: " ""
-                app_search "$app_id" || true
-                terminal_pause
-                ;;
-            c)
-                app_categories
-                terminal_read app_id "请输入分类名称: " ""
-                app_category "$app_id" || true
-                terminal_pause
-                ;;
             *)
                 if app_id="$(catalog_resolve_selector "$choice")"; then
-                    if state_exists "$app_id"; then
-                        app_manage_menu "$app_id"
-                    else
-                        app_details "$app_id"
-                        terminal_pause
-                    fi
+                    app_manage_menu "$app_id"
                 else
-                    warn "请输入应用序号、名称、i、s、c 或 0"
+                    warn "找不到应用：$choice；请输入序号、应用 ID 或名称"
                 fi
                 ;;
         esac
@@ -48,34 +22,44 @@ app_market_menu() {
 }
 
 app_manage_menu() {
-    local app_id="$1" choice manifest_file app_name
+    local app_id="$1" choice manifest_file app_name status current_domain access_mode direct_status
     app_name="$app_id"
     manifest_file="$(catalog_manifest_path "$app_id" 2>/dev/null || true)"
     if [[ -n "$manifest_file" ]]; then
         app_name="$(manifest_get "$manifest_file" name 2>/dev/null || printf '%s' "$app_id")"
     fi
     while true; do
-        printf '\n应用：%s\n%s\n' "$app_name" '--------------------------------'
-        printf '%s\n' '1. 查看状态' '2. 启动' '3. 停止' '4. 重启' '5. 查看日志' '6. 更新' '7. 查看生成凭据' '8. 配置域名/HTTPS' '9. 备份' '10. 恢复' '20. 卸载' '0. 返回'
+        status="$(app_runtime_status "$app_id")"
+        current_domain=""
+        access_mode=""
+        direct_status="不可用"
+        if state_exists "$app_id"; then
+            current_domain="$(state_get "$app_id" domain 2>/dev/null || true)"
+            access_mode="$(state_get "$app_id" accessMode 2>/dev/null || printf 'direct')"
+            direct_status="允许"
+            [[ "$access_mode" != "domain_only" ]] || direct_status="已阻止"
+        fi
+        printf '\n应用：%s\n状态：%s\n' "$app_name" "$status"
+        printf '域名访问：%s\nIP+端口访问：%s\n' "${current_domain:-未配置}" "$direct_status"
+        printf '%s\n' '--------------------------------'
+        printf '%s\n' \
+            '1. 安装              2. 更新            3. 卸载' \
+            '--------------------------------' \
+            '5. 添加域名访问      6. 删除域名访问' \
+            '7. 允许IP+端口访问   8. 阻止IP+端口访问' \
+            '--------------------------------' \
+            '0. 返回上一级选单' \
+            '--------------------------------'
         terminal_read choice "请输入选择: " ""
         case "$choice" in
             0) return 0 ;;
-            1) app_status "$app_id" || true ;;
-            2) app_start "$app_id" || true ;;
-            3) app_stop "$app_id" || true ;;
-            4) app_restart "$app_id" || true ;;
-            5) app_logs "$app_id" || true ;;
-            6) app_update "$app_id" || true ;;
-            7) app_credentials "$app_id" || true ;;
-            8) app_domain_menu "$app_id" || true ;;
-            9) app_backup "$app_id" || true ;;
-            10)
-                local backup_id
-                app_backups "$app_id"
-                terminal_read backup_id "请输入备份 ID（不含 .tar.gz）: " ""
-                app_restore "$app_id" "$backup_id" || true
-                ;;
-            20) app_remove "$app_id" || true; state_exists "$app_id" || return 0 ;;
+            1) app_install "$app_id" || true ;;
+            2) app_update "$app_id" || true ;;
+            3) app_remove "$app_id" || true ;;
+            5) app_domain "$app_id" --configure --access domain-only || true ;;
+            6) app_domain "$app_id" --remove || true ;;
+            7) app_access_mode "$app_id" direct || true ;;
+            8) app_access_mode "$app_id" domain-only || true ;;
             *) warn "无效选择：$choice"; continue ;;
         esac
         terminal_pause
