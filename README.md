@@ -1,6 +1,6 @@
 # SHDome
 
-SHDome 是一个面向 Linux 服务器的模块化管理工具。当前正式版本为 [`v0.1.6`](https://github.com/xuchunlei520/shdome/releases/tag/v0.1.6)，优先提供多应用安装、更新、卸载、独立端口、域名反向代理、HTTPS 证书和访问模式管理。
+SHDome 是一个面向 Linux 服务器的模块化管理工具。当前正式版本为 [`v0.1.7`](https://github.com/xuchunlei520/shdome/releases/tag/v0.1.7)，优先提供多应用安装、更新、卸载、独立端口、域名反向代理、HTTPS 证书和访问模式管理。
 
 默认安装后通过“服务器 IP + 独立宿主机端口”访问应用；添加域名后由共享 Nginx 提供 HTTPS，并默认切换为仅域名访问。后续网站、系统、网络和集群功能以独立模块加入，不改变现有应用命令。
 

@@ -64,9 +64,8 @@ app_list() {
         app_list_json
         return
     fi
-    local manifest_file app_id name version status description found=0 index=0
-    printf '%-6s %-20s %-14s %-10s %s\n' '序号' '名称' '版本' '状态' '说明'
-    printf '%s\n' '------------------------------------------------------------------------------------------------'
+    local manifest_file app_id name version status description found=0 index=0 row_index
+    local -a indexes=() names=() versions=() statuses=() descriptions=()
     while IFS= read -r manifest_file; do
         [[ -n "$manifest_file" ]] || continue
         manifest_validate "$manifest_file" || continue
@@ -76,9 +75,21 @@ app_list() {
         status="$(app_runtime_status "$app_id")"
         description="$(manifest_get "$manifest_file" description)"
         index=$((index + 1))
-        printf '%-6s %-20s %-14s %-10s %s\n' "$index" "$name" "$version" "$status" "$description"
+        indexes+=("$index")
+        names+=("$name")
+        versions+=("$version")
+        statuses+=("$status")
+        descriptions+=("$description")
         found=1
     done < <(catalog_each_manifest)
+    {
+        printf '%s\0' '序号' '名称' '版本' '状态' '说明'
+        for ((row_index = 0; row_index < ${#indexes[@]}; row_index++)); do
+            printf '%s\0' \
+                "${indexes[$row_index]}" "${names[$row_index]}" "${versions[$row_index]}" \
+                "${statuses[$row_index]}" "${descriptions[$row_index]}"
+        done
+    } | terminal_render_table 5
     [[ "$found" == "1" ]] || warn "应用目录为空：$SHDOME_CATALOG_DIR"
 }
 

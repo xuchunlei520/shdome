@@ -42,6 +42,37 @@ if grep -q '应用 ID' <<<"$app_list_output"; then
     printf '应用市场不应显示应用 ID 列\n' >&2
     exit 1
 fi
+narrow_app_list_output="$(COLUMNS=72 bash "$PROJECT_DIR/src/shdome.sh" app list)"
+python3 - "$narrow_app_list_output" <<'PY'
+import sys
+import unicodedata
+
+output = sys.argv[1]
+
+
+def width(value):
+    result = 0
+    for character in value:
+        if unicodedata.combining(character) or unicodedata.category(character) in {"Cf", "Me"}:
+            continue
+        result += 2 if unicodedata.east_asian_width(character) in {"W", "F"} else 1
+    return result
+
+
+lines = output.splitlines()
+assert all(width(line) <= 72 for line in lines), output
+header = next(line for line in lines if "序号" in line and "说明" in line)
+expected_columns = [width(header[:header.index(label)]) for label in ["序号", "名称", "版本", "状态", "说明"]]
+for name in ["Cloudreve", "青龙面板", "Uptime Kuma", "禅道"]:
+    line = next(line for line in lines if name in line)
+    fields = [line.index(name), line.index(next(value for value in ["3.8.3", "2.17.12", "1.23.16", "21.7"] if value in line))]
+    assert width(line[:fields[0]]) == expected_columns[1], line
+    assert width(line[:fields[1]]) == expected_columns[2], line
+gitea_start = next(index for index, line in enumerate(lines) if "Gitea" in line)
+gitea_end = next(index for index in range(gitea_start + 1, len(lines)) if lines[index].startswith("3"))
+gitea_block = "".join(lines[gitea_start:gitea_end]).replace(" ", "")
+assert "轻量级自托管Git服务，示范Web与SSH多端口部署" in gitea_block, output
+PY
 app_details_output="$(bash "$PROJECT_DIR/src/shdome.sh" app details cloudreve)"
 grep -q 'Cloudreve' <<<"$app_details_output"
 help_output="$(bash "$PROJECT_DIR/src/shdome.sh" help)"
