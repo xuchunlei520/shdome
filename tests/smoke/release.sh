@@ -39,6 +39,23 @@ if find "$PACKAGE_ROOT" -type f -perm /022 -print -quit | grep -q .; then
     exit 1
 fi
 
+if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+    fake_bin="$TEST_ROOT/fake-bin"
+    mkdir -p "$fake_bin"
+    printf '%s\n' '#!/usr/bin/env bash' 'printf "sudo-arg=%s\\n" "$@"' >"$fake_bin/sudo"
+    chmod 755 "$fake_bin/sudo"
+    installer_elevation_output="$(PATH="$fake_bin:$PATH" \
+        SHDOME_RELEASE_VERSION=v9.9.9 \
+        SHDOME_RELEASE_URL=https://github.com/example/shdome/releases/download/v9.9.9/shdome-v9.9.9.tar.gz \
+        SHDOME_RELEASE_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+        SHDOME_NO_LAUNCH=1 \
+        bash "$PROJECT_DIR/bootstrap/install.sh" forwarded-argument)"
+    grep -q '^sudo-arg=-H$' <<<"$installer_elevation_output"
+    grep -q '^sudo-arg=SHDOME_RELEASE_VERSION=v9.9.9$' <<<"$installer_elevation_output"
+    grep -q '^sudo-arg=SHDOME_NO_LAUNCH=1$' <<<"$installer_elevation_output"
+    grep -q '^sudo-arg=forwarded-argument$' <<<"$installer_elevation_output"
+fi
+
 export SHDOME_ROOT="$TEST_ROOT/runtime"
 export SHDOME_ALLOW_NON_ROOT=1
 version_output="$(bash "$PACKAGE_ROOT/src/shdome.sh" version)"

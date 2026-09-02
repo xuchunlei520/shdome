@@ -51,6 +51,8 @@ class StructureTests(unittest.TestCase):
         installer = (ROOT / "bootstrap/install.sh").read_text(encoding="utf-8")
         self.assertIn('exec "$SCRIPT_PATH" "$@"', installer)
         self.assertNotIn("</dev/null", installer)
+        self.assertIn("bootstrap_auto_elevate \"$@\"", installer)
+        self.assertIn("exec sudo -H -- env", installer)
 
     def test_management_entry_auto_elevates_without_relaxing_state_permissions(self):
         entrypoint = (ROOT / "src/shdome.sh").read_text(encoding="utf-8")

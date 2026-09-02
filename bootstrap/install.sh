@@ -93,15 +93,34 @@ bootstrap_safe_link() {
     ln -sfn "$target" "$link_path"
 }
 
+bootstrap_auto_elevate() {
+    [[ ${EUID:-$(id -u)} -ne 0 ]] || return 0
+    if [[ -n "${SHDOME_INSTALL_ROOT+x}" && "$SHDOME_INSTALL_ROOT" != "/opt/shdome" ]]; then
+        bootstrap_fail "普通用户自动提权不接受自定义安装目录；请显式使用 sudo env SHDOME_INSTALL_ROOT=... 执行" 77
+    fi
+    command -v sudo >/dev/null 2>&1 || \
+        bootstrap_fail "安装需要 root 权限；系统未安装 sudo，请先切换到 root" 77
+    if [[ -t 2 ]]; then
+        printf '[SHDome] 正在通过 sudo 获取安装权限\n' >&2
+    fi
+    exec sudo -H -- env \
+        "SHDOME_RELEASE_VERSION=$RELEASE_VERSION" \
+        "SHDOME_RELEASE_URL=$RELEASE_URL" \
+        "SHDOME_RELEASE_SHA256=$RELEASE_SHA256" \
+        "SHDOME_NO_LAUNCH=$NO_LAUNCH" \
+        bash "$0" "$@"
+}
+
 if [[ "${SHDOME_INSTALLER_LIBRARY_ONLY:-0}" == "1" ]]; then
     # shellcheck disable=SC2317
     return 0 2>/dev/null || exit 0
 fi
 
+bootstrap_auto_elevate "$@"
 trap bootstrap_cleanup EXIT INT TERM
 
 [[ "$(uname -s)" == "Linux" ]] || bootstrap_fail "目前只支持 Linux" 69
-[[ ${EUID:-$(id -u)} -eq 0 ]] || bootstrap_fail "请使用 root 用户执行安装" 77
+[[ ${EUID:-$(id -u)} -eq 0 ]] || bootstrap_fail "无法获取 root 安装权限" 77
 [[ "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][a-zA-Z0-9._-]+)?$ ]] || bootstrap_fail "发布版本未配置或格式错误"
 [[ "$RELEASE_SHA256" =~ ^[a-fA-F0-9]{64}$ ]] || bootstrap_fail "发布包 SHA-256 未配置或格式错误"
 bootstrap_release_url_validate "$RELEASE_URL" "$RELEASE_VERSION" || \
