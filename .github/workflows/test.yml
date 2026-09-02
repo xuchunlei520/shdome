@@ -1,0 +1,203 @@
+name: test
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ShellCheck
+        run: shellcheck --severity=style $(find . -type f -name '*.sh' -print)
+      - name: Python unit tests
+        run: python3 -m unittest discover -s tests/unit -v
+      - name: Worker tests
+        run: node tests/unit/worker.test.mjs
+      - name: CLI smoke tests
+        run: bash tests/smoke/cli.sh
+      - name: Helper and state smoke tests
+        run: bash tests/smoke/helpers.sh
+      - name: Release smoke tests
+        run: bash tests/smoke/release.sh
+
+  distro-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - ubuntu:24.04
+          - debian:12
+          - rockylinux:9
+          - almalinux:9
+          - alpine:3.20
+        platform:
+          - linux/amd64
+          - linux/arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - name: Run CLI suite in ${{ matrix.image }} on ${{ matrix.platform }}
+        env:
+          TEST_IMAGE: ${{ matrix.image }}
+          TEST_PLATFORM: ${{ matrix.platform }}
+        run: |
+          docker run --rm --platform "$TEST_PLATFORM" \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace "$TEST_IMAGE" sh -c '
+              set -eu
+              if command -v apt-get >/dev/null; then
+                apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y bash python3 coreutils findutils grep sed tar gzip;
+              elif command -v dnf >/dev/null; then
+                # Rocky/Alma minimal images provide core commands through
+                # coreutils-single, which conflicts with the coreutils package.
+                dnf install -y bash python3 findutils grep sed tar gzip;
+              elif command -v apk >/dev/null; then
+                apk add --no-cache bash python3 coreutils findutils grep sed tar gzip;
+              else
+                exit 69;
+              fi
+              bash tests/smoke/cli.sh
+              bash tests/smoke/helpers.sh
+              bash tests/smoke/release.sh
+            '
+
+  docker-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install and verify a real application
+        run: |
+          set -Eeuo pipefail
+          runtime=/tmp/shdome-integration
+          run_k() {
+            sudo env SHDOME_ROOT="$runtime" SHDOME_CATALOG_DIR="$GITHUB_WORKSPACE/catalog" \
+              bash "$GITHUB_WORKSPACE/src/shdome.sh" "$@"
+          }
+          run_k app install uptime-kuma --port 18081 --yes
+          curl -fsS --retry 10 --retry-delay 2 http://127.0.0.1:18081/ >/dev/null
+          run_k app status uptime-kuma --json | python3 -c 'import json,sys; value=json.load(sys.stdin); assert value["runtimeStatus"] == "running" and value["hostPort"] == 18081'
+          run_k app reconcile uptime-kuma
+          run_k app backup uptime-kuma --yes
+          sudo test "$(find "$runtime/backups/apps/uptime-kuma" -name '*.tar.gz' | wc -l)" -ge 1
+          archive="$(sudo find "$runtime/backups/apps/uptime-kuma" -name '*.tar.gz' -print -quit)"
+          sudo sh -c "cd '$(dirname "$archive")' && sha256sum -c '$(basename "$archive").sha256'"
+          sudo python3 - "${archive%.tar.gz}.metadata.json" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              value = json.load(handle)
+          assert value["schema"] == 1
+          assert value["appId"] == "uptime-kuma"
+          assert len(value["archive"]["sha256"]) == 64
+          PY
+          run_k app remove uptime-kuma --purge --yes
+          sudo test ! -e "$runtime/apps/uptime-kuma"
+
+      - name: Verify concurrent installers cannot claim the same host port
+        run: |
+          set -Eeuo pipefail
+          runtime=/tmp/shdome-concurrent
+          fixture_catalog="$GITHUB_WORKSPACE/tests/fixtures/multi-app"
+          run_k() {
+            sudo env SHDOME_ROOT="$runtime" SHDOME_CATALOG_DIR="$fixture_catalog" \
+              bash "$GITHUB_WORKSPACE/src/shdome.sh" "$@"
+          }
+          set +e
+          run_k app install demo-one --port 18100 --yes > /tmp/demo-one-install.log 2>&1 &
+          first_pid=$!
+          run_k app install demo-two --port 18100 --yes > /tmp/demo-two-install.log 2>&1 &
+          second_pid=$!
+          wait "$first_pid"; first_status=$?
+          wait "$second_pid"; second_status=$?
+          set -e
+          success_count=0
+          [[ "$first_status" -ne 0 ]] || success_count=$((success_count + 1))
+          [[ "$second_status" -ne 0 ]] || success_count=$((success_count + 1))
+          if [[ "$success_count" -ne 1 ]]; then
+            cat /tmp/demo-one-install.log /tmp/demo-two-install.log
+            exit 1
+          fi
+          for item in demo-one demo-two; do
+            if sudo test -f "$runtime/apps/$item/state.json"; then
+              run_k app remove "$item" --purge --yes
+            fi
+          done
+
+      - name: Verify three applications sharing container port 80 and HTTPS gateway
+        run: |
+          set -Eeuo pipefail
+          runtime=/tmp/shdome-multi-app
+          fixture_catalog=/tmp/shdome-multi-catalog
+          cp -a "$GITHUB_WORKSPACE/tests/fixtures/multi-app" "$fixture_catalog"
+          run_k() {
+            sudo env SHDOME_ROOT="$runtime" SHDOME_CATALOG_DIR="$fixture_catalog" \
+              bash "$GITHUB_WORKSPACE/src/shdome.sh" "$@"
+          }
+          for item in one two three; do
+            run_k app install "demo-$item" --yes
+            if [[ "$item" == "one" ]]; then
+              if run_k app install demo-two --port 18082 --yes; then
+                echo 'port conflict was not rejected' >&2
+                exit 1
+              fi
+            fi
+            port="$(python3 -c "import json; print(json.load(open('$fixture_catalog/demo-$item.json'))['routing']['defaultHostPort'])")"
+            curl -fsS "http://127.0.0.1:$port/" >/dev/null
+            openssl req -x509 -nodes -newkey rsa:2048 -days 2 \
+              -subj "/CN=$item.example.com" -addext "subjectAltName=DNS:$item.example.com" \
+              -keyout "/tmp/$item.example.com.key" -out "/tmp/$item.example.com.crt" >/dev/null 2>&1
+            run_k app cert import "demo-$item" \
+              --domain "$item.example.com" --cert "/tmp/$item.example.com.crt" \
+              --key "/tmp/$item.example.com.key" --access direct --yes
+            curl -kfsS --resolve "$item.example.com:443:127.0.0.1" "https://$item.example.com/" >/dev/null
+          done
+          sudo docker restart shdome-demo-one shdome-demo-two shdome-demo-three shdome-gateway >/dev/null
+          for item in one two three; do
+            port="$(python3 -c "import json; print(json.load(open('$fixture_catalog/demo-$item.json'))['routing']['defaultHostPort'])")"
+            curl -fsS --retry 10 --retry-delay 2 "http://127.0.0.1:$port/" >/dev/null
+            curl -kfsS --retry 10 --retry-delay 2 --resolve "$item.example.com:443:127.0.0.1" "https://$item.example.com/" >/dev/null
+          done
+          sudo mkdir -p "$runtime/apps/demo-three/data"
+          printf 'pre-update-data\n' | sudo tee "$runtime/apps/demo-three/data/rollback-marker.txt" >/dev/null
+          python3 - "$fixture_catalog/demo-three.json" <<'PY'
+          import json, sys
+          path = sys.argv[1]
+          with open(path, encoding="utf-8") as handle:
+              value = json.load(handle)
+          value["version"] = "9.9.9"
+          value["services"]["app"]["image"] = "nginx:this-tag-does-not-exist"
+          with open(path, "w", encoding="utf-8") as handle:
+              json.dump(value, handle, ensure_ascii=False, indent=2)
+          PY
+          if run_k app update demo-three --yes; then
+            echo 'failed update unexpectedly succeeded' >&2
+            exit 1
+          fi
+          curl -fsS http://127.0.0.1:18084/ >/dev/null
+          sudo python3 -c "import json; value=json.load(open('$runtime/apps/demo-three/state.json')); assert value['version'] == '1.28.0'"
+          sudo grep -qx 'pre-update-data' "$runtime/apps/demo-three/data/rollback-marker.txt"
+          test -z "$(sudo find "$runtime/apps" -maxdepth 1 -type d -name '.failed-update-demo-three-*' -print -quit)"
+          run_k app remove demo-two --purge --yes
+          curl -kfsS --resolve one.example.com:443:127.0.0.1 https://one.example.com/ >/dev/null
+          curl -kfsS --resolve three.example.com:443:127.0.0.1 https://three.example.com/ >/dev/null
+          run_k app remove demo-one --purge --yes
+          run_k app remove demo-three --purge --yes
+
+      - name: Verify failed health check is not registered
+        run: |
+          set -Eeuo pipefail
+          runtime=/tmp/shdome-health-failure
+          if sudo env SHDOME_ROOT="$runtime" SHDOME_CATALOG_DIR="$GITHUB_WORKSPACE/tests/fixtures/failure-app" \
+            bash "$GITHUB_WORKSPACE/src/shdome.sh" app install demo-bad-health --yes; then
+            echo 'unhealthy application unexpectedly succeeded' >&2
+            exit 1
+          fi
+          sudo test ! -f "$runtime/apps/demo-bad-health/state.json"
+          test -z "$(docker ps -aq --filter name=^/shdome-demo-bad-health$)"

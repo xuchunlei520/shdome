@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+entry_path="${BASH_SOURCE[0]}"
+while [[ -L "$entry_path" ]]; do
+    entry_dir="$(cd "$(dirname "$entry_path")" && pwd)"
+    entry_path="$(readlink "$entry_path")"
+    [[ "$entry_path" == /* ]] || entry_path="$entry_dir/$entry_path"
+done
+entry_dir="$(cd "$(dirname "$entry_path")" && pwd)"
+exec "$entry_dir/../src/shdome.sh" "$@"

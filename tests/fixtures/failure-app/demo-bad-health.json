@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "demo-bad-health",
+  "name": "Demo Bad Health",
+  "version": "1.28.0",
+  "description": "健康检查失败回滚验收应用",
+  "category": "测试",
+  "architectures": ["amd64", "arm64"],
+  "services": {"app": {"image": "nginx:1.28.0-alpine", "containerName": "shdome-demo-bad-health", "containerPort": 80}},
+  "resources": {"diskGB": 1, "memoryMB": 64},
+  "environment": {},
+  "volumes": [],
+  "healthcheck": {"type": "http", "path": "/must-return-404", "timeoutSeconds": 5},
+  "routing": {"enabled": true, "defaultAccessMode": "direct", "defaultHostPort": 18085}
+}

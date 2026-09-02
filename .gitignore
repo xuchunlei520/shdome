@@ -1,0 +1,5 @@
+dist/
+__pycache__/
+*.py[cod]
+bootstrap/wrangler.toml
+.DS_Store

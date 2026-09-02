@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "id": "gitea",
+  "name": "Gitea",
+  "version": "1.22.6",
+  "description": "轻量级自托管 Git 服务，示范 Web 与 SSH 多端口部署",
+  "category": "开发工具",
+  "architectures": ["amd64", "arm64"],
+  "services": {
+    "app": {
+      "image": "gitea/gitea:1.22.6",
+      "containerName": "shdome-gitea"
+    }
+  },
+  "resources": {"diskGB": 2, "memoryMB": 512},
+  "environment": {
+    "USER_UID": "1000",
+    "USER_GID": "1000"
+  },
+  "volumes": [
+    {"source": "gitea-data", "target": "/data"}
+  ],
+  "ports": [
+    {
+      "name": "http",
+      "containerPort": 3000,
+      "defaultHostPort": 3000,
+      "protocol": "tcp",
+      "primary": true
+    },
+    {
+      "name": "ssh",
+      "containerPort": 22,
+      "defaultHostPort": 2222,
+      "protocol": "tcp",
+      "primary": false
+    }
+  ],
+  "healthcheck": {
+    "type": "http",
+    "path": "/",
+    "timeoutSeconds": 180
+  },
+  "routing": {
+    "enabled": true,
+    "defaultAccessMode": "direct"
+  }
+}

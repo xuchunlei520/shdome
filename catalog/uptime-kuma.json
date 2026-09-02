@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "id": "uptime-kuma",
+  "name": "Uptime Kuma",
+  "version": "1.23.16",
+  "description": "轻量易用的服务可用性监控面板",
+  "category": "监控",
+  "architectures": ["amd64", "arm64"],
+  "services": {
+    "app": {
+      "image": "louislam/uptime-kuma:1.23.16",
+      "containerName": "shdome-uptime-kuma",
+      "containerPort": 3001
+    }
+  },
+  "resources": {"diskGB": 1, "memoryMB": 256},
+  "environment": {},
+  "volumes": [
+    {"source": "app-data", "target": "/app/data"}
+  ],
+  "healthcheck": {
+    "type": "http",
+    "path": "/",
+    "timeoutSeconds": 120
+  },
+  "routing": {
+    "enabled": true,
+    "defaultAccessMode": "direct",
+    "defaultHostPort": 3001
+  }
+}

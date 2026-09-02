@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:worker": "node tests/unit/worker.test.mjs"
+  }
+}

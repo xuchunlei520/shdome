@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "id": "zentao",
+  "name": "禅道",
+  "version": "21.7",
+  "description": "项目管理与研发协作平台",
+  "category": "项目管理",
+  "architectures": ["amd64", "arm64"],
+  "services": {
+    "app": {
+      "image": "easysoft/zentao:21.7",
+      "containerName": "shdome-zentao",
+      "containerPort": 80
+    }
+  },
+  "resources": {"diskGB": 5, "memoryMB": 2048},
+  "environment": {
+    "MYSQL_INTERNAL": "true"
+  },
+  "secrets": [
+    {"name": "ZT_MYSQL_PASSWORD", "bytes": 24}
+  ],
+  "volumes": [
+    {"source": "zentao-data", "target": "/data"}
+  ],
+  "healthcheck": {
+    "type": "http",
+    "path": "/",
+    "timeoutSeconds": 300
+  },
+  "routing": {
+    "enabled": true,
+    "defaultAccessMode": "direct",
+    "defaultHostPort": 8082
+  }
+}

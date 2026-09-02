@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "demo-three",
+  "name": "Demo Three",
+  "version": "1.28.0",
+  "description": "多应用同容器端口验收应用三",
+  "category": "测试",
+  "architectures": ["amd64", "arm64"],
+  "services": {"app": {"image": "nginx:1.28.0-alpine", "containerName": "shdome-demo-three", "containerPort": 80}},
+  "resources": {"diskGB": 1, "memoryMB": 64},
+  "environment": {},
+  "volumes": [],
+  "healthcheck": {"type": "http", "path": "/", "timeoutSeconds": 60},
+  "routing": {"enabled": true, "defaultAccessMode": "direct", "defaultHostPort": 18084}
+}

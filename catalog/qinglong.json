@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "id": "qinglong",
+  "name": "青龙面板",
+  "version": "2.17.12",
+  "description": "支持定时任务管理的自动化面板",
+  "category": "自动化",
+  "architectures": ["amd64", "arm64"],
+  "services": {
+    "app": {
+      "image": "whyour/qinglong:2.17.12",
+      "containerName": "shdome-qinglong",
+      "containerPort": 5700
+    }
+  },
+  "resources": {"diskGB": 2, "memoryMB": 512},
+  "environment": {
+    "QL_BRANCH": "master"
+  },
+  "volumes": [
+    {"source": "ql-data", "target": "/ql/data"}
+  ],
+  "healthcheck": {
+    "type": "http",
+    "path": "/",
+    "timeoutSeconds": 180
+  },
+  "routing": {
+    "enabled": true,
+    "defaultAccessMode": "direct",
+    "defaultHostPort": 5700
+  }
+}
