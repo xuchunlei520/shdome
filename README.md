@@ -16,6 +16,8 @@ sudo bash src/shdome.sh app install uptime-kuma
 SHDOME_ROOT=/tmp/shdome-dev bash src/shdome.sh app list
 ```
 
+正式安装后直接执行 `k`。非 root 的 sudoer 执行管理命令时，SHDome 会通过 `sudo` 重新启动自身；`k version` 和 `k help` 等纯读取命令不会触发提权。应用状态、生成凭据和 Compose 文件继续保持仅 root 可读。
+
 ## 项目边界
 
 - `src/core/`：终端、配置、日志、锁、状态、模块发现、菜单注册和命令路由。

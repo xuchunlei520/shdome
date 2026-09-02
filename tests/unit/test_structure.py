@@ -52,6 +52,14 @@ class StructureTests(unittest.TestCase):
         self.assertIn('exec "$SCRIPT_PATH" "$@"', installer)
         self.assertNotIn("</dev/null", installer)
 
+    def test_management_entry_auto_elevates_without_relaxing_state_permissions(self):
+        entrypoint = (ROOT / "src/shdome.sh").read_text(encoding="utf-8")
+        config = (ROOT / "src/core/config.sh").read_text(encoding="utf-8")
+        state = (ROOT / "src/core/state.sh").read_text(encoding="utf-8")
+        self.assertIn('shdome_auto_elevate "$@"', entrypoint)
+        self.assertIn('exec sudo -H -- "$SHDOME_SOURCE_DIR/shdome.sh" "$@"', config)
+        self.assertIn("state_storage_require_readable", state)
+
 
 if __name__ == "__main__":
     unittest.main()

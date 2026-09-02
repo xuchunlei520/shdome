@@ -3,6 +3,28 @@
 SHDOME_NAME="SHDome"
 SHDOME_VERSION="0.1.0-dev"
 
+shdome_command_requires_root() {
+    case "${1:-}" in
+        help|--help|-h|version|--version|-v) return 1 ;;
+        *) return 0 ;;
+    esac
+}
+
+shdome_auto_elevate() {
+    if [[ ${EUID:-$(id -u)} -eq 0 || "${SHDOME_ALLOW_NON_ROOT:-0}" == "1" ]]; then
+        return 0
+    fi
+    shdome_command_requires_root "$@" || return 0
+    if ! command -v sudo >/dev/null 2>&1; then
+        fail "SHDome 管理操作需要 root 权限；系统未安装 sudo，请先切换到 root 后重试" 77
+        return
+    fi
+    if [[ -t 2 ]]; then
+        printf '[信息] 正在通过 sudo 获取 SHDome 管理权限\n' >&2
+    fi
+    exec sudo -H -- "$SHDOME_SOURCE_DIR/shdome.sh" "$@"
+}
+
 shdome_config_init() {
     : "${SHDOME_ROOT:=/opt/shdome}"
     : "${SHDOME_CONFIG_DIR:=$SHDOME_ROOT/config}"

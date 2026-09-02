@@ -10,6 +10,30 @@ export SHDOME_ALLOW_NON_ROOT=1
 
 version_output="$(bash "$PROJECT_DIR/src/shdome.sh" version)"
 grep -q '^SHDome ' <<<"$version_output"
+
+if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+    fake_bin="$TEST_ROOT/fake-bin"
+    mkdir -p "$fake_bin"
+    printf '%s\n' '#!/usr/bin/env bash' 'printf "sudo-arg=%s\\n" "$@"' >"$fake_bin/sudo"
+    chmod 755 "$fake_bin/sudo"
+    elevation_output="$(env -u SHDOME_ALLOW_NON_ROOT PATH="$fake_bin:$PATH" \
+        bash "$PROJECT_DIR/src/shdome.sh" app installed)"
+    grep -q '^sudo-arg=-H$' <<<"$elevation_output"
+    grep -Fxq "sudo-arg=$PROJECT_DIR/src/shdome.sh" <<<"$elevation_output"
+    grep -q '^sudo-arg=installed$' <<<"$elevation_output"
+
+    restricted_root="$TEST_ROOT/restricted"
+    mkdir -p "$restricted_root/apps"
+    chmod 000 "$restricted_root/apps"
+    if permission_output="$(SHDOME_ROOT="$restricted_root" SHDOME_ALLOW_NON_ROOT=1 \
+        bash "$PROJECT_DIR/src/shdome.sh" app installed 2>&1)"; then
+        printf '不可读状态目录不应报告为空\n' >&2
+        exit 1
+    fi
+    grep -q '无法读取应用状态目录' <<<"$permission_output"
+    chmod 700 "$restricted_root/apps"
+fi
+
 app_list_output="$(bash "$PROJECT_DIR/src/shdome.sh" app list)"
 grep -q 'uptime-kuma' <<<"$app_list_output"
 grep -q 'zentao' <<<"$app_list_output"

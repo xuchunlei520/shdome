@@ -41,6 +41,7 @@ app_runtime_status() {
 }
 
 app_list() {
+    state_storage_require_readable || return
     if [[ "${1:-}" == "--json" ]]; then
         app_list_json
         return
@@ -119,6 +120,7 @@ app_search() {
 
 app_installed() {
     local state_file app_id found=0
+    state_storage_require_readable || return
     while IFS= read -r state_file; do
         [[ -n "$state_file" ]] || continue
         app_id="$(basename "$(dirname "$state_file")")"
@@ -130,6 +132,7 @@ app_installed() {
 
 app_details() {
     local app_id="$1" manifest_file ports_json port_name host_port container_port protocol primary suffix
+    state_storage_require_readable || return
     manifest_file="$(catalog_manifest_path "$app_id")" || { fail "应用目录中不存在：$app_id" 66; return; }
     manifest_validate "$manifest_file" || return
     printf '应用：%s (%s)\n' "$(manifest_get "$manifest_file" name)" "$app_id"
@@ -162,6 +165,7 @@ PY
 
 app_category() {
     local category="${1:-}" manifest_file found=0
+    state_storage_require_readable || return
     [[ -n "$category" ]] || { fail "用法：k app category <分类>" 64; return; }
     while IFS= read -r manifest_file; do
         if [[ "$(manifest_get "$manifest_file" category)" == "$category" ]]; then

@@ -17,6 +17,16 @@ modules_activate
 [[ "${SHDOME_MODULE_IDS[*]}" == "app_market" ]]
 [[ "${SHDOME_MENU_NUMBERS[*]}" == "1 2 3 4" ]]
 [[ "${SHDOME_HELP_HANDLERS[*]}" == "app_market_help" ]]
+(
+    # shellcheck disable=SC2317
+    terminal_read() {
+        local target_variable="$1"
+        printf -v "$target_variable" '%s' 0
+    }
+    # shellcheck disable=SC2317
+    app_installed() { return 0; }
+    installed_apps_menu >/dev/null
+)
 test_future_menu_handler() { :; }
 menu_register 20 "测试系统模块" test_future_menu_handler
 menu_register 10 "测试网站模块" test_future_menu_handler

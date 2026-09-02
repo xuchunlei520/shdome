@@ -30,6 +30,7 @@ shdome_load() {
 
 shdome_main() {
     shdome_load
+    shdome_auto_elevate "$@"
     shdome_config_init
     shdome_register_builtin_commands
     modules_activate

@@ -9,6 +9,7 @@ app_require_id() {
 app_require_installed() {
     local app_id="$1"
     [[ "$app_id" =~ ^[a-z0-9][a-z0-9-]{1,62}$ ]] || { fail "应用 ID 格式错误：$app_id" 64; return; }
+    state_storage_require_readable || return
     state_exists "$app_id" || { fail "应用尚未安装：$app_id" 66; return; }
 }
 

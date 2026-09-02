@@ -141,7 +141,7 @@ app_domain_menu() {
         printf '%s\n' '1. 添加/更换域名并申请证书' '2. 移除域名' '3. 允许 IP+端口访问' '4. 仅允许域名访问' '5. 查看证书' '6. 手动续期证书' '0. 返回'
         terminal_read choice "请输入选择: " ""
         case "$choice" in
-            0) return ;;
+            0) return 0 ;;
             1) app_domain "$app_id" --configure || true ;;
             2) app_domain "$app_id" --remove || true ;;
             3) app_access_mode "$app_id" direct || true ;;

@@ -9,7 +9,7 @@ app_market_menu() {
         printf '%s\n' 'i. 安装应用' 's. 搜索应用' 'c. 按分类浏览' '0. 返回'
         terminal_read choice "请输入选择: " ""
         case "$choice" in
-            0) return ;;
+            0) return 0 ;;
             i)
                 terminal_read app_id "请输入应用 ID: " ""
                 app_install "$app_id" || true
@@ -45,7 +45,7 @@ installed_apps_menu() {
         app_installed
         printf '%s\n' '--------------------------------'
         terminal_read app_id "输入应用 ID 进行管理，输入 0 返回: " ""
-        [[ "$app_id" != "0" ]] || return
+        [[ "$app_id" != "0" ]] || return 0
         if state_exists "$app_id"; then
             app_manage_menu "$app_id"
         else
@@ -61,7 +61,7 @@ app_manage_menu() {
         printf '%s\n' '1. 查看状态' '2. 启动' '3. 停止' '4. 重启' '5. 查看日志' '6. 更新' '7. 查看生成凭据' '8. 配置域名/HTTPS' '9. 备份' '10. 恢复' '20. 卸载' '0. 返回'
         terminal_read choice "请输入选择: " ""
         case "$choice" in
-            0) return ;;
+            0) return 0 ;;
             1) app_status "$app_id" || true ;;
             2) app_start "$app_id" || true ;;
             3) app_stop "$app_id" || true ;;
@@ -77,7 +77,7 @@ app_manage_menu() {
                 terminal_read backup_id "请输入备份 ID（不含 .tar.gz）: " ""
                 app_restore "$app_id" "$backup_id" || true
                 ;;
-            20) app_remove "$app_id" || true; state_exists "$app_id" || return ;;
+            20) app_remove "$app_id" || true; state_exists "$app_id" || return 0 ;;
             *) warn "无效选择：$choice"; continue ;;
         esac
         terminal_pause
@@ -95,7 +95,7 @@ app_environment_menu() {
         printf '%s\n' '--------------------------------' '1. 完整环境检查' '2. 安装/修复 Docker' '3. 查看容器' '4. 查看镜像' '5. 查看网络' '6. 查看资源占用' '7. 查看端口监听' '8. 清理悬空镜像' '0. 返回'
         terminal_read choice "请输入选择: " ""
         case "$choice" in
-            0) return ;;
+            0) return 0 ;;
             1) environment_check || true; terminal_pause ;;
             2) lock_run docker-install docker_runtime_install || true; terminal_pause ;;
             3) docker_managed_containers || true; terminal_pause ;;

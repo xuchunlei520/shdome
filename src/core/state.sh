@@ -1,5 +1,20 @@
 #!/usr/bin/env bash
 
+state_storage_require_readable() {
+    local state_file
+    [[ -e "$SHDOME_APPS_DIR" ]] || return 0
+    if [[ ! -d "$SHDOME_APPS_DIR" || ! -r "$SHDOME_APPS_DIR" || ! -x "$SHDOME_APPS_DIR" ]]; then
+        fail "无法读取应用状态目录：$SHDOME_APPS_DIR；请使用 sudo k 重试" 77
+        return
+    fi
+    while IFS= read -r state_file; do
+        [[ -r "$state_file" ]] || {
+            fail "无法读取应用状态文件：$state_file；请使用 sudo k 重试" 77
+            return
+        }
+    done < <(find "$SHDOME_APPS_DIR" -mindepth 2 -maxdepth 2 -type f -name state.json -print 2>/dev/null)
+}
+
 state_file_for() {
     local app_id="$1"
     printf '%s/%s/state.json\n' "$SHDOME_APPS_DIR" "$app_id"
