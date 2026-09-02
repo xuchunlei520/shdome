@@ -17,7 +17,7 @@ command -v git >/dev/null 2>&1 || {
     printf '构建发布包需要 git\n' >&2
     exit 69
 }
-git -C "$PROJECT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+git -c "safe.directory=$PROJECT_DIR" -C "$PROJECT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
     printf '发布包必须从 Git 工作区构建\n' >&2
     exit 69
 }
@@ -27,7 +27,7 @@ while IFS= read -r -d '' relative_path; do
     target_path="$PACKAGE_ROOT/$relative_path"
     mkdir -p "$(dirname "$target_path")"
     cp -a -- "$PROJECT_DIR/$relative_path" "$target_path"
-done < <(git -C "$PROJECT_DIR" ls-files -z -- \
+done < <(git -c "safe.directory=$PROJECT_DIR" -C "$PROJECT_DIR" ls-files -z -- \
     src catalog bin bootstrap README.md 开发文档.md 功能文档.md 使用文档.md)
 
 for required_path in bin/k src/shdome.sh bootstrap/install.sh bootstrap/worker.js bootstrap/wrangler.toml.example; do

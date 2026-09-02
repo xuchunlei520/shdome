@@ -62,7 +62,7 @@ class StructureTests(unittest.TestCase):
 
     def test_release_builder_only_copies_tracked_files(self):
         builder = (ROOT / "scripts/build-release.sh").read_text(encoding="utf-8")
-        self.assertIn("git -C \"$PROJECT_DIR\" ls-files -z", builder)
+        self.assertIn('git -c "safe.directory=$PROJECT_DIR" -C "$PROJECT_DIR" ls-files -z', builder)
         self.assertNotIn('cp -a "$PROJECT_DIR/src"', builder)
 
 
