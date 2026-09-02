@@ -74,14 +74,16 @@ if catalog_resolve_selector does-not-exist >/dev/null 2>&1; then exit 1; fi
     # shellcheck disable=SC2317
     app_access_mode() { printf 'access:%s\n' "$*" >>"$action_file"; }
     app_manage_menu uptime-kuma >/dev/null
-    diff -u <(printf '%s\n' \
+    expected_actions="$(printf '%s\n' \
         'install:uptime-kuma' \
         'update:uptime-kuma' \
         'remove:uptime-kuma' \
         'domain:uptime-kuma --configure --access domain-only' \
         'domain:uptime-kuma --remove' \
         'access:uptime-kuma direct' \
-        'access:uptime-kuma domain-only') "$action_file"
+        'access:uptime-kuma domain-only')"
+    actual_actions="$(<"$action_file")"
+    [[ "$actual_actions" == "$expected_actions" ]]
 )
 test_future_menu_handler() { :; }
 menu_register 20 "测试系统模块" test_future_menu_handler
