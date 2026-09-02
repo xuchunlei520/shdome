@@ -36,6 +36,8 @@ for required_path in bin/k src/shdome.sh bootstrap/install.sh bootstrap/worker.j
         exit 66
     }
 done
+find "$PACKAGE_ROOT" -type d -exec chmod 755 {} +
+find "$PACKAGE_ROOT" -type f -exec chmod 644 {} +
 chmod 755 "$PACKAGE_ROOT/bin/k" "$PACKAGE_ROOT/src/shdome.sh" "$PACKAGE_ROOT/bootstrap/install.sh"
 sed -i "s/^SHDOME_VERSION=.*/SHDOME_VERSION=\"${VERSION#v}\"/" "$PACKAGE_ROOT/src/core/config.sh"
 sed -i "s|^    : \"\${SHDOME_RELEASE_VERSION:=.*}\"$|    : \"\${SHDOME_RELEASE_VERSION:=$VERSION}\"|" "$PACKAGE_ROOT/src/core/config.sh"

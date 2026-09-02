@@ -64,6 +64,7 @@ class StructureTests(unittest.TestCase):
         builder = (ROOT / "scripts/build-release.sh").read_text(encoding="utf-8")
         self.assertIn('git -c "safe.directory=$PROJECT_DIR" -C "$PROJECT_DIR" ls-files -z', builder)
         self.assertNotIn('cp -a "$PROJECT_DIR/src"', builder)
+        self.assertIn('find "$PACKAGE_ROOT" -type f -exec chmod 644 {} +', builder)
 
 
 if __name__ == "__main__":

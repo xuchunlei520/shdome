@@ -32,6 +32,12 @@ grep -qx 'SHDOME_VERSION="0.0.0-test"' "$PACKAGE_ROOT/src/core/config.sh"
 grep -Fqx "    : \"\${SHDOME_RELEASE_VERSION:=v0.0.0-test}\"" "$PACKAGE_ROOT/src/core/config.sh"
 bash -n "$PACKAGE_ROOT/src/shdome.sh"
 [[ -x "$PACKAGE_ROOT/bin/k" && -x "$PACKAGE_ROOT/bootstrap/install.sh" ]]
+[[ "$(stat -c '%a' "$PACKAGE_ROOT/README.md")" == "644" ]]
+[[ "$(stat -c '%a' "$PACKAGE_ROOT/bin/k")" == "755" ]]
+if find "$PACKAGE_ROOT" -type f -perm /022 -print -quit | grep -q .; then
+    printf '发布包包含可被组或其他用户写入的文件\n' >&2
+    exit 1
+fi
 
 export SHDOME_ROOT="$TEST_ROOT/runtime"
 export SHDOME_ALLOW_NON_ROOT=1
