@@ -3,7 +3,7 @@ main = "worker.js"
 compatibility_date = "2026-08-01"
 
 [vars]
-SHDOME_RELEASE_VERSION = "v0.1.0"
-SHDOME_RELEASE_URL = "https://github.com/OWNER/shdome/releases/download/v0.1.0/shdome-v0.1.0.tar.gz"
+SHDOME_RELEASE_VERSION = "v0.1.6"
+SHDOME_RELEASE_URL = "https://github.com/OWNER/shdome/releases/download/v0.1.6/shdome-v0.1.6.tar.gz"
 SHDOME_RELEASE_SHA256 = "替换为64位SHA256"
 SHDOME_INSTALLER_URL = "https://raw.githubusercontent.com/OWNER/shdome/固定40位commit/bootstrap/install.sh"
