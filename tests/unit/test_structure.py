@@ -36,7 +36,8 @@ class StructureTests(unittest.TestCase):
         self.assertIn("catalog_resolve_selector", catalog)
         self.assertIn("'序号' '名称' '版本' '状态' '说明'", catalog)
         self.assertNotIn("'应用 ID' '名称' '版本' '状态'", catalog)
-        self.assertIn("输入序号、应用 ID 或名称", menu)
+        self.assertIn("输入序号或应用名称", menu)
+        self.assertNotIn('"${selector,,}" == "${app_id,,}"', catalog)
         for removed_entry in ("i. 安装应用", "s. 搜索应用", "c. 按分类浏览"):
             self.assertNotIn(removed_entry, menu)
         for action in (

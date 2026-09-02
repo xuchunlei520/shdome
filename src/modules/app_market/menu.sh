@@ -7,14 +7,14 @@ app_market_menu() {
         app_list
         printf '%s\n' '--------------------------------'
         printf '%s\n' '0. 返回上一级选单' '--------------------------------'
-        terminal_read choice "输入序号、应用 ID 或名称: " ""
+        terminal_read choice "输入序号或应用名称: " ""
         case "$choice" in
             0) return 0 ;;
             *)
                 if app_id="$(catalog_resolve_selector "$choice")"; then
                     app_manage_menu "$app_id"
                 else
-                    warn "找不到应用：$choice；请输入序号、应用 ID 或名称"
+                    warn "找不到应用：$choice；请输入序号或应用名称"
                 fi
                 ;;
         esac

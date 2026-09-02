@@ -21,7 +21,7 @@ catalog_resolve_selector() {
         index=$((index + 1))
         app_id="$(manifest_get "$manifest_file" id)"
         app_name="$(manifest_get "$manifest_file" name)"
-        if [[ "$selector" == "$index" || "${selector,,}" == "${app_name,,}" || "${selector,,}" == "${app_id,,}" ]]; then
+        if [[ "$selector" == "$index" || "${selector,,}" == "${app_name,,}" ]]; then
             [[ -z "$match" || "$match" == "$app_id" ]] || return 2
             match="$app_id"
         fi

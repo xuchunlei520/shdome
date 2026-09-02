@@ -22,6 +22,7 @@ modules_activate
 [[ "$(catalog_resolve_selector 4)" == "uptime-kuma" ]]
 [[ "$(catalog_resolve_selector 'Uptime Kuma')" == "uptime-kuma" ]]
 [[ "$(catalog_resolve_selector 禅道)" == "zentao" ]]
+if catalog_resolve_selector uptime-kuma >/dev/null 2>&1; then exit 1; fi
 if catalog_resolve_selector does-not-exist >/dev/null 2>&1; then exit 1; fi
 (
     selections=(4 0)
