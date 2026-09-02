@@ -14,7 +14,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: ShellCheck
         run: shellcheck --severity=style $(find . -type f -name '*.sh' -print)
       - name: Python unit tests
@@ -43,7 +43,7 @@ jobs:
           - linux/amd64
           - linux/arm64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: docker/setup-qemu-action@v3
       - name: Run CLI suite in ${{ matrix.image }} on ${{ matrix.platform }}
         env:
@@ -72,7 +72,7 @@ jobs:
   docker-integration:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install and verify a real application
         run: |
           set -Eeuo pipefail
@@ -86,7 +86,8 @@ jobs:
           run_k app status uptime-kuma --json | python3 -c 'import json,sys; value=json.load(sys.stdin); assert value["runtimeStatus"] == "running" and value["hostPort"] == 18081'
           run_k app reconcile uptime-kuma
           run_k app backup uptime-kuma --yes
-          sudo test "$(find "$runtime/backups/apps/uptime-kuma" -name '*.tar.gz' | wc -l)" -ge 1
+          backup_count="$(sudo find "$runtime/backups/apps/uptime-kuma" -name '*.tar.gz' | wc -l)"
+          test "$backup_count" -ge 1
           archive="$(sudo find "$runtime/backups/apps/uptime-kuma" -name '*.tar.gz' -print -quit)"
           sudo sh -c "cd '$(dirname "$archive")' && sha256sum -c '$(basename "$archive").sha256'"
           sudo python3 - "${archive%.tar.gz}.metadata.json" <<'PY'
