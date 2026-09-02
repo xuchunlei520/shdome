@@ -24,7 +24,7 @@ shdome_register_builtin_commands() {
     command_register version show_version
     command_register self-update self_update_command
     command_register config config_command
-    menu_register 4 "SHDome 设置" settings_menu
+    menu_register 3 "SHDome 设置" settings_menu
 }
 
 route_command() {

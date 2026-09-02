@@ -12,6 +12,24 @@ catalog_each_manifest() {
     find "$SHDOME_CATALOG_DIR" -maxdepth 1 -type f -name '*.json' -print | LC_ALL=C sort
 }
 
+catalog_resolve_selector() {
+    local selector="${1:-}" manifest_file app_id app_name index=0 match=""
+    [[ -n "$selector" ]] || return 1
+    while IFS= read -r manifest_file; do
+        [[ -n "$manifest_file" ]] || continue
+        manifest_validate "$manifest_file" >/dev/null 2>&1 || continue
+        index=$((index + 1))
+        app_id="$(manifest_get "$manifest_file" id)"
+        app_name="$(manifest_get "$manifest_file" name)"
+        if [[ "$selector" == "$index" || "${selector,,}" == "${app_name,,}" || "${selector,,}" == "${app_id,,}" ]]; then
+            [[ -z "$match" || "$match" == "$app_id" ]] || return 2
+            match="$app_id"
+        fi
+    done < <(catalog_each_manifest)
+    [[ -n "$match" ]] || return 1
+    printf '%s\n' "$match"
+}
+
 app_runtime_status() {
     local app_id="$1" container_name manifest_file installed_version catalog_version
     if ! state_exists "$app_id"; then
@@ -46,9 +64,9 @@ app_list() {
         app_list_json
         return
     fi
-    local manifest_file app_id name version status found=0
-    printf '%-18s %-20s %-14s %s\n' '应用 ID' '名称' '版本' '状态'
-    printf '%s\n' '----------------------------------------------------------------'
+    local manifest_file app_id name version status description found=0 index=0
+    printf '%-6s %-20s %-14s %-10s %s\n' '序号' '名称' '版本' '状态' '说明'
+    printf '%s\n' '------------------------------------------------------------------------------------------------'
     while IFS= read -r manifest_file; do
         [[ -n "$manifest_file" ]] || continue
         manifest_validate "$manifest_file" || continue
@@ -56,7 +74,9 @@ app_list() {
         name="$(manifest_get "$manifest_file" name)"
         version="$(manifest_get "$manifest_file" version)"
         status="$(app_runtime_status "$app_id")"
-        printf '%-18s %-20s %-14s %s\n' "$app_id" "$name" "$version" "$status"
+        description="$(manifest_get "$manifest_file" description)"
+        index=$((index + 1))
+        printf '%-6s %-20s %-14s %-10s %s\n' "$index" "$name" "$version" "$status" "$description"
         found=1
     done < <(catalog_each_manifest)
     [[ "$found" == "1" ]] || warn "应用目录为空：$SHDOME_CATALOG_DIR"
@@ -135,7 +155,7 @@ app_details() {
     state_storage_require_readable || return
     manifest_file="$(catalog_manifest_path "$app_id")" || { fail "应用目录中不存在：$app_id" 66; return; }
     manifest_validate "$manifest_file" || return
-    printf '应用：%s (%s)\n' "$(manifest_get "$manifest_file" name)" "$app_id"
+    printf '应用：%s\n' "$(manifest_get "$manifest_file" name)"
     printf '版本：%s\n' "$(manifest_get "$manifest_file" version)"
     printf '分类：%s\n' "$(manifest_get "$manifest_file" category)"
     printf '说明：%s\n' "$(manifest_get "$manifest_file" description)"

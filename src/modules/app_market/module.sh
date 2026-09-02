@@ -22,8 +22,7 @@ app_market_load
 
 app_market_register() {
     menu_register 1 "应用市场" app_market_menu
-    menu_register 2 "已安装应用" installed_apps_menu
-    menu_register 3 "应用运行环境" app_environment_menu
+    menu_register 2 "应用运行环境" app_environment_menu
     command_register app app_command
     command_register env app_environment_command
     command_register backup backup_command

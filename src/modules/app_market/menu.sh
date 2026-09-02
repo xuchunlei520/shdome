@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 
 app_market_menu() {
-    local choice app_id
+    local choice selector app_id
     while true; do
         printf '\n应用市场\n%s\n' '--------------------------------'
         app_list
         printf '%s\n' '--------------------------------'
         printf '%s\n' 'i. 安装应用' 's. 搜索应用' 'c. 按分类浏览' '0. 返回'
-        terminal_read choice "请输入选择: " ""
+        terminal_read choice "输入序号或名称查看/管理应用: " ""
         case "$choice" in
             0) return 0 ;;
             i)
-                terminal_read app_id "请输入应用 ID: " ""
+                terminal_read selector "请输入应用序号或名称: " ""
+                if ! app_id="$(catalog_resolve_selector "$selector")"; then
+                    warn "找不到应用：$selector"
+                    terminal_pause
+                    continue
+                fi
                 app_install "$app_id" || true
                 terminal_pause
                 ;;
@@ -27,37 +32,30 @@ app_market_menu() {
                 terminal_pause
                 ;;
             *)
-                if catalog_manifest_path "$choice" >/dev/null 2>&1; then
-                    app_details "$choice"
-                    terminal_pause
+                if app_id="$(catalog_resolve_selector "$choice")"; then
+                    if state_exists "$app_id"; then
+                        app_manage_menu "$app_id"
+                    else
+                        app_details "$app_id"
+                        terminal_pause
+                    fi
                 else
-                    warn "请输入应用 ID、i、s 或 0"
+                    warn "请输入应用序号、名称、i、s、c 或 0"
                 fi
                 ;;
         esac
     done
 }
 
-installed_apps_menu() {
-    local app_id
-    while true; do
-        printf '\n已安装应用\n%s\n' '--------------------------------'
-        app_installed
-        printf '%s\n' '--------------------------------'
-        terminal_read app_id "输入应用 ID 进行管理，输入 0 返回: " ""
-        [[ "$app_id" != "0" ]] || return 0
-        if state_exists "$app_id"; then
-            app_manage_menu "$app_id"
-        else
-            warn "应用未安装：$app_id"
-        fi
-    done
-}
-
 app_manage_menu() {
-    local app_id="$1" choice
+    local app_id="$1" choice manifest_file app_name
+    app_name="$app_id"
+    manifest_file="$(catalog_manifest_path "$app_id" 2>/dev/null || true)"
+    if [[ -n "$manifest_file" ]]; then
+        app_name="$(manifest_get "$manifest_file" name 2>/dev/null || printf '%s' "$app_id")"
+    fi
     while true; do
-        printf '\n应用：%s\n%s\n' "$app_id" '--------------------------------'
+        printf '\n应用：%s\n%s\n' "$app_name" '--------------------------------'
         printf '%s\n' '1. 查看状态' '2. 启动' '3. 停止' '4. 重启' '5. 查看日志' '6. 更新' '7. 查看生成凭据' '8. 配置域名/HTTPS' '9. 备份' '10. 恢复' '20. 卸载' '0. 返回'
         terminal_read choice "请输入选择: " ""
         case "$choice" in

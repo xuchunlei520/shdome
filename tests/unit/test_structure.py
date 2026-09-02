@@ -19,16 +19,25 @@ class StructureTests(unittest.TestCase):
         module = (ROOT / "src/modules/app_market/module.sh").read_text(encoding="utf-8")
         expected = {
             'menu_register 1 "应用市场"',
-            'menu_register 2 "已安装应用"',
-            'menu_register 3 "应用运行环境"',
+            'menu_register 2 "应用运行环境"',
         }
         for line in expected:
             self.assertIn(line, module)
-        self.assertNotIn('menu_register 4 "SHDome 设置"', module)
+        self.assertNotIn('menu_register 2 "已安装应用"', module)
+        self.assertNotIn('menu_register 3 "SHDome 设置"', module)
         self.assertIn(
-            'menu_register 4 "SHDome 设置"',
+            'menu_register 3 "SHDome 设置"',
             (ROOT / "src/core/router.sh").read_text(encoding="utf-8"),
         )
+
+    def test_market_uses_number_name_and_description_without_id_column(self):
+        catalog = (ROOT / "src/modules/app_market/catalog.sh").read_text(encoding="utf-8")
+        menu = (ROOT / "src/modules/app_market/menu.sh").read_text(encoding="utf-8")
+        self.assertIn("catalog_resolve_selector", catalog)
+        self.assertIn("'序号' '名称' '版本' '状态' '说明'", catalog)
+        self.assertNotIn("'应用 ID' '名称' '版本' '状态'", catalog)
+        self.assertIn("输入序号或名称查看/管理应用", menu)
+        self.assertNotIn("installed_apps_menu()", menu)
 
     def test_entrypoint_discovers_business_modules(self):
         entrypoint = (ROOT / "src/shdome.sh").read_text(encoding="utf-8")

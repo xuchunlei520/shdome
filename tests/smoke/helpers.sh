@@ -15,22 +15,37 @@ shdome_register_builtin_commands
 modules_activate
 
 [[ "${SHDOME_MODULE_IDS[*]}" == "app_market" ]]
-[[ "${SHDOME_MENU_NUMBERS[*]}" == "1 2 3 4" ]]
+[[ "${SHDOME_MENU_NUMBERS[*]}" == "1 2 3" ]]
 [[ "${SHDOME_HELP_HANDLERS[*]}" == "app_market_help" ]]
+[[ "$(catalog_resolve_selector 1)" == "cloudreve" ]]
+[[ "$(catalog_resolve_selector Cloudreve)" == "cloudreve" ]]
+[[ "$(catalog_resolve_selector 4)" == "uptime-kuma" ]]
+[[ "$(catalog_resolve_selector 'Uptime Kuma')" == "uptime-kuma" ]]
+[[ "$(catalog_resolve_selector 禅道)" == "zentao" ]]
+if catalog_resolve_selector does-not-exist >/dev/null 2>&1; then exit 1; fi
 (
+    selections=(4 0)
+    selection_index=0
+    managed_app=""
     # shellcheck disable=SC2317
     terminal_read() {
         local target_variable="$1"
-        printf -v "$target_variable" '%s' 0
+        printf -v "$target_variable" '%s' "${selections[$selection_index]}"
+        selection_index=$((selection_index + 1))
     }
     # shellcheck disable=SC2317
-    app_installed() { return 0; }
-    installed_apps_menu >/dev/null
+    app_list() { return 0; }
+    # shellcheck disable=SC2317
+    state_exists() { [[ "$1" == "uptime-kuma" ]]; }
+    # shellcheck disable=SC2317
+    app_manage_menu() { managed_app="$1"; }
+    app_market_menu >/dev/null
+    [[ "$managed_app" == "uptime-kuma" ]]
 )
 test_future_menu_handler() { :; }
 menu_register 20 "测试系统模块" test_future_menu_handler
 menu_register 10 "测试网站模块" test_future_menu_handler
-[[ "${SHDOME_MENU_NUMBERS[*]}" == "1 2 3 4 10 20" ]]
+[[ "${SHDOME_MENU_NUMBERS[*]}" == "1 2 3 10 20" ]]
 menu_count="${#SHDOME_MENU_NUMBERS[@]}"
 if menu_register 1 "重复菜单" test_future_menu_handler >/dev/null 2>&1; then exit 1; fi
 [[ "${#SHDOME_MENU_NUMBERS[@]}" == "$menu_count" ]]

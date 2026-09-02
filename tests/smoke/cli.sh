@@ -35,8 +35,13 @@ if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
 fi
 
 app_list_output="$(bash "$PROJECT_DIR/src/shdome.sh" app list)"
-grep -q 'uptime-kuma' <<<"$app_list_output"
-grep -q 'zentao' <<<"$app_list_output"
+grep -q '序号.*名称.*版本.*状态.*说明' <<<"$app_list_output"
+grep -q 'Uptime Kuma.*轻量易用的服务可用性监控面板' <<<"$app_list_output"
+grep -q '禅道.*项目管理与研发协作平台' <<<"$app_list_output"
+if grep -q '应用 ID' <<<"$app_list_output"; then
+    printf '应用市场不应显示应用 ID 列\n' >&2
+    exit 1
+fi
 app_details_output="$(bash "$PROJECT_DIR/src/shdome.sh" app details cloudreve)"
 grep -q 'Cloudreve' <<<"$app_details_output"
 help_output="$(bash "$PROJECT_DIR/src/shdome.sh" help)"
