@@ -2,4 +2,5 @@ dist/
 __pycache__/
 *.py[cod]
 bootstrap/wrangler.toml
+.wrangler/
 .DS_Store

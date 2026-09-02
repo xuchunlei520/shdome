@@ -32,12 +32,12 @@ dist/shdome-v0.1.0.tar.gz.sha256
 - `SHDOME_RELEASE_SHA256`：构建产生的 64 位摘要。
 - `SHDOME_INSTALLER_URL`：固定到 40 位 Commit 的 `raw.githubusercontent.com` 地址。
 
-部署 Worker 后，把 `mytool.sh` 路由到该 Worker。根路径返回 `text/plain` Bash，引导器错误时也返回可安全退出的 Bash，不返回 HTML 安装页。
+部署 Worker 后，把短域名（当前生产入口为 `k.flowread.cc`）绑定到该 Worker。根路径返回 `text/plain` Bash，引导器错误时也返回可安全退出的 Bash，不返回 HTML 安装页。
 
 ## 4. 安装链路
 
 ```text
-bash <(curl -fsSL https://mytool.sh)
+bash <(curl -fsSL https://k.flowread.cc)
 → Worker 返回固定版本参数和小型下载器
 → 下载固定 Commit 的 install.sh
 → 下载 GitHub Release 压缩包
