@@ -88,12 +88,12 @@ PY
 }
 
 app_backup_locked() {
-    local app_id="$1" app_dir backup_dir backup_id archive service_name image container_name container_id image_digest was_running=0 domain nginx_source
+    local app_id="$1" app_dir backup_dir backup_id archive container_name was_running=0 domain nginx_source
     local stage_dir stage_archive stage_checksum stage_nginx stage_metadata final_nginx final_metadata final_checksum nginx_metadata_path=""
     local cert_root="$SHDOME_ROOT/gateway/letsencrypt" logical_dump="" logical_archive_dir
     app_dir="$SHDOME_APPS_DIR/$app_id"
     logical_archive_dir="$app_dir/.shdome-logical"
-    while IFS=$'\t' read -r service_name image container_name container_id image_digest; do
+    while IFS=$'\t' read -r _ _ container_name _ _; do
         if [[ "$(docker inspect -f '{{.State.Running}}' "$container_name" 2>/dev/null || true)" == "true" ]]; then
             was_running=1
             break

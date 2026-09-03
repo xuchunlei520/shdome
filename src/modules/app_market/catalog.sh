@@ -82,7 +82,7 @@ catalog_resolve_selector() {
 }
 
 app_runtime_status() {
-    local app_id="$1" service_name image container_name container_id image_digest status
+    local app_id="$1" container_name status
     local manifest_file installed_version catalog_version running=0 stopped=0 missing=0
     if ! state_exists "$app_id"; then
         printf '未安装'
@@ -101,7 +101,7 @@ app_runtime_status() {
         printf '已登记'
         return
     fi
-    while IFS=$'\t' read -r service_name image container_name container_id image_digest; do
+    while IFS=$'\t' read -r _ _ container_name _ _; do
         status="$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null || true)"
         case "$status" in
             running) running=$((running + 1)) ;;

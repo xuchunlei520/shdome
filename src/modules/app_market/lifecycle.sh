@@ -506,7 +506,9 @@ app_update_restore_snapshot() {
     fi
     if [[ -n "${SHDOME_UPDATE_OLD_IMAGES_JSON:-}" ]]; then
         while IFS=$'\t' read -r image image_id; do
-            [[ -n "$image_id" ]] && docker tag "$image_id" "$image" >/dev/null 2>&1 || true
+            if [[ -n "$image_id" ]]; then
+                docker tag "$image_id" "$image" >/dev/null 2>&1 || true
+            fi
         done < <(python3 - "$SHDOME_UPDATE_OLD_IMAGES_JSON" <<'PY'
 import json, sys
 for image, image_id in json.loads(sys.argv[1]).items():

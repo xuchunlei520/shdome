@@ -110,7 +110,7 @@ if catalog_resolve_selector does-not-exist >/dev/null 2>&1; then exit 1; fi
     [[ "$actual_actions" == "$expected_actions" ]]
 )
 (
-    # shellcheck disable=SC2317
+    # shellcheck disable=SC2317,SC2030
     terminal_read() { printf -v "$1" '%s' 0; }
     # shellcheck disable=SC2317
     app_runtime_status() { printf '运行中'; }
