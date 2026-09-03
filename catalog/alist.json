@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "id": "alist",
+  "name": "AList",
+  "version": "3.63.0",
+  "description": "支持多种存储提供商的文件列表与 WebDAV 服务",
+  "category": "文件与存储",
+  "architectures": ["amd64", "arm64"],
+  "services": {
+    "app": {
+      "image": "xhofe/alist:v3.63.0",
+      "containerName": "shdome-alist",
+      "containerPort": 5244
+    }
+  },
+  "resources": {"diskGB": 1, "memoryMB": 256},
+  "environment": {"PUID": 0, "PGID": 0, "UMASK": "022"},
+  "volumes": [
+    {"source": "data", "target": "/opt/alist/data", "type": "directory"}
+  ],
+  "backup": {"strategy": "cold-filesystem"},
+  "healthcheck": {"type": "http", "path": "/", "timeoutSeconds": 120},
+  "routing": {"enabled": true, "defaultAccessMode": "direct", "defaultHostPort": 5244}
+}

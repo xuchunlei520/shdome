@@ -7,11 +7,14 @@ app_market_load() {
         catalog.sh \
         port.sh \
         docker_runtime.sh \
+        image_source.sh \
         preflight.sh \
         lifecycle.sh \
         gateway.sh \
         certificate.sh \
         backup.sh \
+        custom.sh \
+        catalog_update.sh \
         menu.sh; do
         # shellcheck source=/dev/null
         source "$SHDOME_SOURCE_DIR/modules/app_market/$file"
@@ -37,6 +40,10 @@ app_market_help() {
   k app categories          查看应用分类
   k app installed           查看已安装应用
   k app install <id>        安装应用
+  k app custom add <镜像>    创建并安装自定义应用
+  k app custom list         查看自定义应用
+  k app catalog status      查看官方目录状态
+  k app catalog refresh ... 验签并刷新官方目录
   k app status <id> [--json] 查看应用状态
   k app start|stop|restart <id>
   k app logs <id> [--follow]
@@ -50,6 +57,7 @@ app_market_help() {
   k app remove <id> [--purge]
   k env                     查看应用运行环境
   k env check               执行完整环境诊断
+  k env mirror status|test  查看或测试自动镜像源
   k backup all              备份全部已安装应用
   k restore <备份ID>        按唯一备份 ID 恢复
 EOF
@@ -69,6 +77,8 @@ app_command() {
         category) app_category "$@" ;;
         details|info) app_details "${1:-}" ;;
         installed) app_installed ;;
+        custom) custom_command "$@" ;;
+        catalog) catalog_command "$@" ;;
         install) app_install "$@" ;;
         status) app_status "$@" ;;
         start) app_start "$@" ;;
@@ -97,6 +107,7 @@ app_environment_command() {
         status) docker_runtime_status ;;
         check) environment_check ;;
         install) shift; lock_run docker-install docker_runtime_install "$@" ;;
+        mirror) shift; image_source_command "$@" ;;
         containers) docker_managed_containers ;;
         images) docker_images ;;
         networks) docker_networks ;;

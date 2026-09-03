@@ -28,7 +28,7 @@ while IFS= read -r -d '' relative_path; do
     mkdir -p "$(dirname "$target_path")"
     cp -a -- "$PROJECT_DIR/$relative_path" "$target_path"
 done < <(git -c "safe.directory=$PROJECT_DIR" -C "$PROJECT_DIR" ls-files -z -- \
-    src catalog bin bootstrap README.md 开发文档.md 功能文档.md 使用文档.md)
+    src catalog bin bootstrap docs README.md 开发文档.md 功能文档.md 使用文档.md)
 
 for required_path in bin/k src/shdome.sh bootstrap/install.sh bootstrap/worker.js bootstrap/wrangler.toml.example; do
     [[ -f "$PACKAGE_ROOT/$required_path" ]] || {

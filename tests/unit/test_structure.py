@@ -34,9 +34,9 @@ class StructureTests(unittest.TestCase):
         catalog = (ROOT / "src/modules/app_market/catalog.sh").read_text(encoding="utf-8")
         menu = (ROOT / "src/modules/app_market/menu.sh").read_text(encoding="utf-8")
         self.assertIn("catalog_resolve_selector", catalog)
-        self.assertIn("'序号' '名称' '版本' '状态' '说明'", catalog)
+        self.assertIn("'序号' '名称' '版本' '状态' '来源' '说明'", catalog)
         self.assertNotIn("'应用 ID' '名称' '版本' '状态'", catalog)
-        self.assertIn("输入序号或应用名称", menu)
+        self.assertIn("输入序号、应用名称或 A", menu)
         self.assertNotIn('"${selector,,}" == "${app_id,,}"', catalog)
         for removed_entry in ("i. 安装应用", "s. 搜索应用", "c. 按分类浏览"):
             self.assertNotIn(removed_entry, menu)
@@ -48,6 +48,42 @@ class StructureTests(unittest.TestCase):
             self.assertIn(action, menu)
         self.assertIn('app_domain "$app_id" --configure --access domain-only', menu)
         self.assertNotIn("installed_apps_menu()", menu)
+
+    def test_minimal_market_supports_custom_apps_and_signed_catalogs(self):
+        config = (ROOT / "src/core/config.sh").read_text(encoding="utf-8")
+        lifecycle = (ROOT / "src/modules/app_market/lifecycle.sh").read_text(encoding="utf-8")
+        custom = (ROOT / "src/modules/app_market/custom.sh").read_text(encoding="utf-8")
+        updater = (ROOT / "src/modules/app_market/catalog_update.sh").read_text(encoding="utf-8")
+        design = ROOT / "docs/极简应用市场设计.md"
+        self.assertTrue(design.is_file())
+        self.assertIn("SHDOME_CUSTOM_CATALOG_DIR", config)
+        self.assertNotIn("输入应用主服务对外端口", lifecycle)
+        self.assertIn("port_find_available", lifecycle)
+        self.assertIn("custom_generate_manifest", custom)
+        self.assertIn("custom_manifest_install", custom)
+        self.assertIn("catalog_signature_verify", updater)
+        self.assertIn("catalog_archive_extract", updater)
+        self.assertIn("catalog_symlink_replace", updater)
+
+    def test_automatic_image_sources_are_centralized_and_documented(self):
+        config = (ROOT / "src/core/config.sh").read_text(encoding="utf-8")
+        module = (ROOT / "src/modules/app_market/module.sh").read_text(encoding="utf-8")
+        sources = (ROOT / "src/modules/app_market/image_source.sh").read_text(encoding="utf-8")
+        design = ROOT / "docs/自动镜像源设计.md"
+        self.assertTrue(design.is_file())
+        self.assertIn("SHDOME_IMAGE_SOURCE_CONFIG", config)
+        self.assertIn("image_source.sh", module)
+        self.assertIn('mirror) shift; image_source_command "$@"', module)
+        self.assertIn("image_source_pull_order", sources)
+        self.assertIn("image_source_mirror_reference", sources)
+        self.assertIn("image_source_state_record", sources)
+        self.assertNotIn("/etc/docker/daemon.json", sources)
+        self.assertNotIn('docker_compose -f "$compose_file" -p "shdome-$app_id" pull',
+                         (ROOT / "src/modules/app_market/lifecycle.sh").read_text(encoding="utf-8"))
+        for caller in ("custom.sh", "lifecycle.sh", "gateway.sh", "certificate.sh"):
+            value = (ROOT / "src/modules/app_market" / caller).read_text(encoding="utf-8")
+            self.assertIn("image_source_pull", value)
+            self.assertNotIn('docker pull "$image"', value)
 
     def test_entrypoint_discovers_business_modules(self):
         entrypoint = (ROOT / "src/shdome.sh").read_text(encoding="utf-8")

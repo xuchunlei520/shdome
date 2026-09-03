@@ -1,15 +1,66 @@
 #!/usr/bin/env bash
 
+catalog_official_dir() {
+    local current="$SHDOME_OFFICIAL_CATALOG_ROOT/current" resolved=""
+    if [[ -L "$current" ]]; then
+        resolved="$(readlink -f "$current" 2>/dev/null || true)"
+    fi
+    if [[ -n "$resolved" && "$resolved" == "$SHDOME_OFFICIAL_RELEASES_DIR"/* ]] && \
+       find "$resolved" -maxdepth 1 -type f -name '*.json' -print -quit 2>/dev/null | grep -q .; then
+        printf '%s\n' "$resolved"
+    else
+        printf '%s\n' "$SHDOME_CATALOG_DIR"
+    fi
+}
+
 catalog_manifest_path() {
-    local app_id="$1"
+    local app_id="$1" official_dir manifest_file
     [[ "$app_id" =~ ^[a-z0-9][a-z0-9-]{1,62}$ ]] || return 1
-    local manifest_file="$SHDOME_CATALOG_DIR/$app_id.json"
+    official_dir="$(catalog_official_dir)"
+    manifest_file="$official_dir/$app_id.json"
+    if [[ -f "$manifest_file" ]]; then
+        printf '%s\n' "$manifest_file"
+        return
+    fi
+    manifest_file="$SHDOME_CUSTOM_CATALOG_DIR/$app_id.json"
+    [[ -f "$manifest_file" ]] || return 1
+    printf '%s\n' "$manifest_file"
+}
+
+catalog_manifest_source() {
+    local manifest_file="$1"
+    case "$manifest_file" in
+        "$SHDOME_CUSTOM_CATALOG_DIR"/*) printf '我的\n' ;;
+        *) printf '官方\n' ;;
+    esac
+}
+
+catalog_official_manifest_path() {
+    local app_id="$1" manifest_file
+    manifest_file="$(catalog_official_dir)/$app_id.json"
     [[ -f "$manifest_file" ]] || return 1
     printf '%s\n' "$manifest_file"
 }
 
 catalog_each_manifest() {
-    find "$SHDOME_CATALOG_DIR" -maxdepth 1 -type f -name '*.json' -print | LC_ALL=C sort
+    local official_dir manifest_file app_id
+    declare -A seen=()
+    official_dir="$(catalog_official_dir)"
+    while IFS= read -r manifest_file; do
+        [[ -n "$manifest_file" ]] || continue
+        app_id="$(basename "$manifest_file" .json)"
+        seen["$app_id"]=1
+        printf '%s\n' "$manifest_file"
+    done < <(find "$official_dir" -maxdepth 1 -type f -name '*.json' -print 2>/dev/null | LC_ALL=C sort)
+    while IFS= read -r manifest_file; do
+        [[ -n "$manifest_file" ]] || continue
+        app_id="$(basename "$manifest_file" .json)"
+        if [[ -n "${seen[$app_id]:-}" ]]; then
+            warn "自定义应用 ID 与官方应用冲突，已忽略：$app_id"
+            continue
+        fi
+        printf '%s\n' "$manifest_file"
+    done < <(find "$SHDOME_CUSTOM_CATALOG_DIR" -maxdepth 1 -type f -name '*.json' -print 2>/dev/null | LC_ALL=C sort)
 }
 
 catalog_resolve_selector() {
@@ -64,8 +115,8 @@ app_list() {
         app_list_json
         return
     fi
-    local manifest_file app_id name version status description found=0 index=0 row_index
-    local -a indexes=() names=() versions=() statuses=() descriptions=()
+    local manifest_file app_id name version status source description found=0 index=0 row_index
+    local -a indexes=() names=() versions=() statuses=() sources=() descriptions=()
     while IFS= read -r manifest_file; do
         [[ -n "$manifest_file" ]] || continue
         manifest_validate "$manifest_file" || continue
@@ -73,32 +124,42 @@ app_list() {
         name="$(manifest_get "$manifest_file" name)"
         version="$(manifest_get "$manifest_file" version)"
         status="$(app_runtime_status "$app_id")"
+        source="$(catalog_manifest_source "$manifest_file")"
         description="$(manifest_get "$manifest_file" description)"
         index=$((index + 1))
         indexes+=("$index")
         names+=("$name")
         versions+=("$version")
         statuses+=("$status")
+        sources+=("$source")
         descriptions+=("$description")
         found=1
     done < <(catalog_each_manifest)
     {
-        printf '%s\0' '序号' '名称' '版本' '状态' '说明'
+        printf '%s\0' '序号' '名称' '版本' '状态' '来源' '说明'
         for ((row_index = 0; row_index < ${#indexes[@]}; row_index++)); do
             printf '%s\0' \
                 "${indexes[$row_index]}" "${names[$row_index]}" "${versions[$row_index]}" \
-                "${statuses[$row_index]}" "${descriptions[$row_index]}"
+                "${statuses[$row_index]}" "${sources[$row_index]}" "${descriptions[$row_index]}"
         done
-    } | terminal_render_table 5
-    [[ "$found" == "1" ]] || warn "应用目录为空：$SHDOME_CATALOG_DIR"
+    } | terminal_render_table 6
+    [[ "$found" == "1" ]] || warn "应用目录为空"
 }
 
 app_list_json() {
-    python3 - "$SHDOME_CATALOG_DIR" "$SHDOME_APPS_DIR" <<'PY'
+    local official_dir
+    official_dir="$(catalog_official_dir)"
+    python3 - "$official_dir" "$SHDOME_CUSTOM_CATALOG_DIR" "$SHDOME_APPS_DIR" <<'PY'
 import glob, json, os, shutil, subprocess, sys
-catalog_dir, apps_dir = sys.argv[1:]
+official_dir, custom_dir, apps_dir = sys.argv[1:]
 result = []
-for path in sorted(glob.glob(os.path.join(catalog_dir, "*.json"))):
+paths = [(path, "official") for path in sorted(glob.glob(os.path.join(official_dir, "*.json")))]
+official_ids = {os.path.basename(path) for path, _ in paths}
+paths.extend(
+    (path, "custom") for path in sorted(glob.glob(os.path.join(custom_dir, "*.json")))
+    if os.path.basename(path) not in official_ids
+)
+for path, source in paths:
     with open(path, encoding="utf-8") as handle:
         manifest = json.load(handle)
     state_path = os.path.join(apps_dir, manifest["id"], "state.json")
@@ -133,6 +194,7 @@ for path in sorted(glob.glob(os.path.join(catalog_dir, "*.json"))):
         "id": manifest["id"], "name": manifest["name"], "version": manifest["version"],
         "category": manifest["category"], "description": manifest["description"],
         "architectures": manifest["architectures"], "ports": ports, "status": runtime_status,
+        "source": source,
     })
 print(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
 PY
@@ -170,6 +232,7 @@ app_details() {
     printf '版本：%s\n' "$(manifest_get "$manifest_file" version)"
     printf '分类：%s\n' "$(manifest_get "$manifest_file" category)"
     printf '说明：%s\n' "$(manifest_get "$manifest_file" description)"
+    printf '来源：%s\n' "$(catalog_manifest_source "$manifest_file")"
     printf '镜像：%s\n' "$(manifest_get "$manifest_file" services.app.image)"
     printf '架构：%s\n' "$(manifest_get "$manifest_file" architectures)"
     printf '资源：磁盘 %s GB，内存 %s MB\n' "$(manifest_get "$manifest_file" resources.diskGB)" "$(manifest_get "$manifest_file" resources.memoryMB)"
@@ -183,15 +246,17 @@ app_details() {
 }
 
 app_categories() {
-    python3 - "$SHDOME_CATALOG_DIR" <<'PY'
-import collections, glob, json, os, sys
-counts = collections.Counter()
-for path in glob.glob(os.path.join(sys.argv[1], "*.json")):
-    with open(path, encoding="utf-8") as handle:
-        counts[json.load(handle)["category"]] += 1
-for category in sorted(counts):
-    print(f"{category}\t{counts[category]}")
-PY
+    local manifest_file category
+    declare -A counts=()
+    while IFS= read -r manifest_file; do
+        [[ -n "$manifest_file" ]] || continue
+        manifest_validate "$manifest_file" >/dev/null 2>&1 || continue
+        category="$(manifest_get "$manifest_file" category)"
+        counts["$category"]=$(( ${counts["$category"]:-0} + 1 ))
+    done < <(catalog_each_manifest)
+    for category in "${!counts[@]}"; do
+        printf '%s\t%s\n' "$category" "${counts[$category]}"
+    done | LC_ALL=C sort
 }
 
 app_category() {

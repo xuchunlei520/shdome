@@ -25,7 +25,7 @@ certificate_issue() {
         account_args=(--register-unsafely-without-email)
     fi
     gateway_paths_init || return
-    docker pull "$SHDOME_CERTBOT_IMAGE" || { fail "Certbot 镜像拉取失败" 69; return; }
+    image_source_pull "$SHDOME_CERTBOT_IMAGE" || { fail "Certbot 镜像拉取失败" 69; return; }
     docker run --rm \
         -v "$SHDOME_GATEWAY_WEBROOT:/var/www/certbot" \
         -v "$SHDOME_GATEWAY_CERTS:/etc/letsencrypt" \

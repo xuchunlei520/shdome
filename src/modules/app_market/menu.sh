@@ -2,17 +2,24 @@
 
 app_market_menu() {
     local choice app_id
+    catalog_auto_refresh
     while true; do
         printf '\n应用市场\n%s\n' '--------------------------------'
         app_list
         printf '%s\n' '--------------------------------'
-        printf '%s\n' '0. 返回上一级选单' '--------------------------------'
-        terminal_read choice "输入序号或应用名称: " ""
+        printf '%s\n' 'A. 添加自定义应用' '0. 返回上一级选单' '--------------------------------'
+        terminal_read choice "输入序号、应用名称或 A: " ""
         case "$choice" in
             0) return 0 ;;
+            A|a) custom_add || true; terminal_pause ;;
             *)
                 if app_id="$(catalog_resolve_selector "$choice")"; then
-                    app_manage_menu "$app_id"
+                    if state_exists "$app_id"; then
+                        app_manage_menu "$app_id"
+                    else
+                        app_install "$app_id" || true
+                        terminal_pause
+                    fi
                 else
                     warn "找不到应用：$choice；请输入序号或应用名称"
                 fi
@@ -74,7 +81,7 @@ app_environment_menu() {
         if command -v docker >/dev/null 2>&1; then
             printf '共享 Nginx：%s\n' "$(gateway_container_running && printf '运行中' || printf '未运行')"
         fi
-        printf '%s\n' '--------------------------------' '1. 完整环境检查' '2. 安装/修复 Docker' '3. 查看容器' '4. 查看镜像' '5. 查看网络' '6. 查看资源占用' '7. 查看端口监听' '8. 清理悬空镜像' '0. 返回'
+        printf '%s\n' '--------------------------------' '1. 完整环境检查' '2. 安装/修复 Docker' '3. 查看容器' '4. 查看镜像' '5. 查看网络' '6. 查看资源占用' '7. 查看端口监听' '8. 清理悬空镜像' '9. 自动镜像源状态' '0. 返回'
         terminal_read choice "请输入选择: " ""
         case "$choice" in
             0) return 0 ;;
@@ -86,6 +93,7 @@ app_environment_menu() {
             6) docker_resource_usage || true; terminal_pause ;;
             7) if command -v ss >/dev/null 2>&1; then ss -lntu; else warn "系统缺少 ss"; fi; terminal_pause ;;
             8) docker_prune_images || true; terminal_pause ;;
+            9) image_source_status; image_source_test || true; terminal_pause ;;
             *) warn "无效选择：$choice" ;;
         esac
     done

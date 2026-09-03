@@ -95,7 +95,7 @@ gateway_ensure() {
     fi
     port_assert_available 80 gateway || return
     port_assert_available 443 gateway || return
-    docker pull "$SHDOME_NGINX_IMAGE" || { fail "共享 Nginx 镜像拉取失败" 69; return; }
+    image_source_pull "$SHDOME_NGINX_IMAGE" || { fail "共享 Nginx 镜像拉取失败" 69; return; }
     docker run -d \
         --name "$SHDOME_GATEWAY_CONTAINER" \
         --label io.shdome.managed=true \

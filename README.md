@@ -1,6 +1,6 @@
 # SHDome
 
-SHDome 是一个面向 Linux 服务器的模块化管理工具。当前正式版本为 [`v0.1.7`](https://github.com/xuchunlei520/shdome/releases/tag/v0.1.7)，优先提供多应用安装、更新、卸载、独立端口、域名反向代理、HTTPS 证书和访问模式管理。
+SHDome 是一个面向 Linux 服务器的模块化管理工具。当前正式版本为 [`v0.1.8`](https://github.com/xuchunlei520/shdome/releases/tag/v0.1.8)，优先提供多应用安装、更新、卸载、独立端口、域名反向代理、HTTPS 证书和访问模式管理。
 
 默认安装后通过“服务器 IP + 独立宿主机端口”访问应用；添加域名后由共享 Nginx 提供 HTTPS，并默认切换为仅域名访问。后续网站、系统、网络和集群功能以独立模块加入，不改变现有应用命令。
 
@@ -35,7 +35,7 @@ SHDome 服务器管理工具
 
 ## 应用市场
 
-应用市场显示序号、名称、版本、状态和说明。直接输入列表序号或应用名称进入统一操作菜单；不再提供安装、搜索和分类交互子菜单。
+应用市场统一显示官方应用和用户自定义应用，并标明来源。未安装应用只需输入序号或名称并确认一次，SHDome 会自动选择可用端口、准备 Docker 和数据目录；已安装应用仍进入统一管理菜单。输入 `A` 可以通过一个固定版本 Docker 镜像添加自定义应用。
 
 ```text
 1. 安装              2. 更新            3. 卸载
@@ -51,12 +51,20 @@ SHDome 服务器管理工具
 ```bash
 k app list
 k app install uptime-kuma
+k app custom add vaultwarden/server:1.32.7
+k app custom list
+k app catalog status
+k env mirror status
 k app status uptime-kuma --json
 k app domain uptime-kuma --domain status.example.com --access domain-only --yes
 k app access uptime-kuma direct --yes
 ```
 
-当前目录包含 Cloudreve、Gitea、青龙面板、Uptime Kuma 和禅道。
+当前目录包含 AList、Cloudreve、FreshRSS、Gitea、青龙面板、Syncthing、Uptime Kuma、Vaultwarden 和禅道。
+
+自定义应用保存在 `/opt/shdome/catalog/custom/`，不会随 SHDome 升级被覆盖。镜像没有声明服务端口时，可补充 `--container-port`；需要高级端口设置时使用 `--host-port`。官方目录支持使用可信公钥验签后独立刷新，完整参数和安全边界见[极简应用市场设计](./docs/极简应用市场设计.md)。
+
+应用镜像默认启用自动选源：Docker Hub 正常时优先官方源，连接缓慢或失败时自动尝试可信 HTTPS 镜像源，全部远程来源失败时再使用同名固定版本本地缓存。该流程不增加安装确认、不修改 `/etc/docker/daemon.json`，也不会重启 Docker。管理员可通过 `k env mirror status|test|auto|official|set|reset` 管理策略。
 
 ## 开发运行
 
@@ -77,7 +85,7 @@ SHDOME_ROOT=/tmp/shdome-dev bash src/shdome.sh app list
 ## 项目结构
 
 - `src/core/`：终端、配置、日志、锁、状态、模块发现、菜单注册和命令路由。
-- `src/modules/app_market/`：应用目录、Docker、端口、生命周期、网关、证书和备份。
+- `src/modules/app_market/`：应用目录、自定义应用、目录验签刷新、自动镜像源、Docker、端口、生命周期、网关、证书和备份。
 - `src/modules/<module_id>/module.sh`：业务模块唯一入口，发布包自动发现并激活。
 - `catalog/`：声明式 JSON Manifest，不执行远程应用脚本。
 - `bootstrap/`：一行安装入口和 Cloudflare Worker。
@@ -95,5 +103,7 @@ SHDOME_ROOT=/tmp/shdome-dev bash src/shdome.sh app list
 - [开发文档](./开发文档.md)
 - [发布与 Cloudflare 部署](./docs/发布与Cloudflare部署.md)
 - [实现验收矩阵](./docs/实现验收矩阵.md)
+- [极简应用市场设计](./docs/极简应用市场设计.md)
+- [自动镜像源设计](./docs/自动镜像源设计.md)
 
 当前阶段只在主菜单展示已经完成的应用市场能力。规划中的网站、系统、网络、安全、测试和集群模块在实现前不会注册菜单或返回虚假成功。

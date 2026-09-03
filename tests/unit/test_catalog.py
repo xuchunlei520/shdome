@@ -8,6 +8,13 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 class CatalogTests(unittest.TestCase):
+    def test_expected_official_catalog_expansion(self):
+        ids = {path.stem for path in (ROOT / "catalog").glob("*.json")}
+        self.assertEqual(ids, {
+            "alist", "cloudreve", "freshrss", "gitea", "qinglong",
+            "syncthing", "uptime-kuma", "vaultwarden", "zentao",
+        })
+
     def test_at_least_three_valid_manifests(self):
         manifests = sorted((ROOT / "catalog").glob("*.json"))
         self.assertGreaterEqual(len(manifests), 3)

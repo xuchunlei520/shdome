@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "id": "syncthing",
+  "name": "Syncthing",
+  "version": "2.1.3",
+  "description": "去中心化的跨设备文件同步服务",
+  "category": "文件与存储",
+  "architectures": ["amd64", "arm64"],
+  "services": {
+    "app": {
+      "image": "syncthing/syncthing:2.1.3",
+      "containerName": "shdome-syncthing",
+      "containerPort": 8384
+    }
+  },
+  "resources": {"diskGB": 2, "memoryMB": 512},
+  "environment": {"PUID": 0, "PGID": 0},
+  "volumes": [
+    {"source": "data", "target": "/var/syncthing", "type": "directory"}
+  ],
+  "ports": [
+    {"name": "web", "containerPort": 8384, "defaultHostPort": 8384, "protocol": "tcp", "primary": true},
+    {"name": "sync", "containerPort": 22000, "defaultHostPort": 22000, "protocol": "tcp", "primary": false},
+    {"name": "sync-quic", "containerPort": 22000, "defaultHostPort": 22000, "protocol": "udp", "primary": false},
+    {"name": "discovery", "containerPort": 21027, "defaultHostPort": 21027, "protocol": "udp", "primary": false}
+  ],
+  "backup": {"strategy": "cold-filesystem"},
+  "healthcheck": {"type": "http", "path": "/", "timeoutSeconds": 180},
+  "routing": {"enabled": true, "defaultAccessMode": "direct", "defaultHostPort": 8384}
+}

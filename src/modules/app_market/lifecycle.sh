@@ -13,6 +13,12 @@ app_require_installed() {
     state_exists "$app_id" || { fail "应用尚未安装：$app_id" 66; return; }
 }
 
+app_compose_pull_or_cached() {
+    local compose_file="$1" project="$2" image="$3"
+    : "$compose_file" "$project"
+    image_source_pull "$image"
+}
+
 app_healthcheck() {
     local manifest_file="$1" host_port="$2"
     local type timeout path deadline now
@@ -48,17 +54,17 @@ app_healthcheck() {
 }
 
 app_show_addresses() {
-    local host_port="$1" address found=0
+    local host_port="$1" scheme="${2:-http}" address found=0
     if command -v hostname >/dev/null 2>&1; then
         for address in $(hostname -I 2>/dev/null || true); do
             case "$address" in
-                *:*) printf '  http://[%s]:%s\n' "$address" "$host_port" ;;
-                *) printf '  http://%s:%s\n' "$address" "$host_port" ;;
+                *:*) printf '  %s://[%s]:%s\n' "$scheme" "$address" "$host_port" ;;
+                *) printf '  %s://%s:%s\n' "$scheme" "$address" "$host_port" ;;
             esac
             found=1
         done
     fi
-    [[ "$found" == "1" ]] || printf '  http://服务器IP:%s\n' "$host_port"
+    [[ "$found" == "1" ]] || printf '  %s://服务器IP:%s\n' "$scheme" "$host_port"
 }
 
 app_resource_preflight() {
@@ -95,8 +101,7 @@ app_install() {
 }
 
 app_install_locked() {
-    local app_id="$1" assume_yes="$2" manifest_file name ports_json primary_name primary_default selected_port
-    local port_name host_port container_port protocol primary suffix
+    local app_id="$1" assume_yes="$2" manifest_file name
     shift 2
     local -a port_overrides=("$@")
     if state_exists "$app_id"; then
@@ -115,19 +120,43 @@ app_install_locked() {
     docker_runtime_ensure "$assume_yes" || return
 
     name="$(manifest_get "$manifest_file" name)"
-    ports_json="$(manifest_ports_json "$manifest_file")"
-    if ((${#port_overrides[@]} == 0)) && [[ "$assume_yes" != "1" ]]; then
-        while IFS=$'\t' read -r port_name host_port container_port protocol primary; do
-            if [[ "$primary" == "true" ]]; then
-                primary_name="$port_name"
-                primary_default="$host_port"
-                break
-            fi
-        done < <(ports_json_each "$ports_json")
-        terminal_read selected_port "输入应用主服务对外端口，回车默认使用 ${primary_default}: " "$primary_default" || return
-        port_overrides+=("$primary_name=$selected_port")
-    fi
+    lock_run ports app_install_plan_locked "$app_id" "$assume_yes" "$manifest_file" "$name" "${port_overrides[@]}"
+}
+
+app_install_plan_locked() {
+    local app_id="$1" assume_yes="$2" manifest_file="$3" name="$4"
+    local ports_json base_ports_json primary_name port_name host_port container_port protocol primary suffix
+    local override override_name selected_port reserved=""
+    shift 4
+    local -a port_overrides=("$@")
+    local -a auto_overrides=()
+    declare -A explicit_ports=()
+    base_ports_json="$(manifest_ports_json "$manifest_file")"
+    while IFS=$'\t' read -r port_name host_port container_port protocol primary; do
+        [[ "$primary" != "true" ]] || primary_name="$port_name"
+    done < <(ports_json_each "$base_ports_json")
+    for override in "${port_overrides[@]}"; do
+        if [[ "$override" == *=* ]]; then
+            override_name="${override%%=*}"
+        else
+            override_name="$primary_name"
+        fi
+        explicit_ports["$override_name"]=1
+    done
     ports_json="$(manifest_ports_json "$manifest_file" "${port_overrides[@]}")"
+    while IFS=$'\t' read -r port_name host_port container_port protocol primary; do
+        if [[ -n "${explicit_ports[$port_name]:-}" ]]; then
+            selected_port="$host_port"
+        else
+            selected_port="$(port_find_available "$host_port" "$app_id" "$reserved" "$protocol")" || return
+            auto_overrides+=("$port_name=$selected_port")
+            if [[ "$selected_port" != "$host_port" ]]; then
+                info "建议端口 $host_port 已占用，已为 $port_name 自动选择 $selected_port"
+            fi
+        fi
+        reserved="${reserved:+$reserved,}$selected_port/$protocol"
+    done < <(ports_json_each "$ports_json")
+    ports_json="$(manifest_ports_json "$manifest_file" "${port_overrides[@]}" "${auto_overrides[@]}")" || return
 
     printf '\n安装计划\n%s\n' '--------------------------------'
     printf '应用：       %s (%s)\n' "$name" "$app_id"
@@ -143,16 +172,16 @@ app_install_locked() {
         info "已取消安装"
         return 0
     fi
-    lock_run ports app_install_with_port_lock "$app_id" "$manifest_file" "$ports_json"
+    app_install_with_port_lock "$app_id" "$manifest_file" "$ports_json"
 }
 
 app_install_with_port_lock() {
     local app_id="$1" manifest_file="$2" ports_json="$3"
     local app_dir="$SHDOME_APPS_DIR/$app_id" compose_file="$SHDOME_APPS_DIR/$app_id/compose.yml"
-    local container_name container_id image image_digest primary_host
+    local container_name container_id image image_digest primary_host address_scheme
     local port_name host_port container_port protocol primary
     while IFS=$'\t' read -r port_name host_port container_port protocol primary; do
-        port_assert_available "$host_port" "$app_id" || return
+        port_assert_available "$host_port" "$app_id" "$protocol" || return
     done < <(ports_json_each "$ports_json")
     SHDOME_INSTALL_ACTIVE=1
     SHDOME_INSTALL_APP_ID="$app_id"
@@ -166,7 +195,7 @@ app_install_with_port_lock() {
     container_name="$(manifest_get "$manifest_file" services.app.containerName)"
     image="$(manifest_get "$manifest_file" services.app.image)"
     log_event INFO app-install "开始安装 $app_id，端口映射 $ports_json"
-    if ! docker_compose -f "$compose_file" -p "shdome-$app_id" pull || \
+    if ! app_compose_pull_or_cached "$compose_file" "shdome-$app_id" "$image" || \
        ! docker_compose -f "$compose_file" -p "shdome-$app_id" up -d; then
         docker_compose -f "$compose_file" -p "shdome-$app_id" down >/dev/null 2>&1 || true
         log_event ERROR app-install "容器启动失败 $app_id"
@@ -187,7 +216,9 @@ app_install_with_port_lock() {
     trap - EXIT
     log_event INFO app-install "安装成功 $app_id"
     success "应用 $app_id 安装完成"
-    app_show_addresses "$primary_host"
+    address_scheme="$(manifest_get "$manifest_file" healthcheck.type)"
+    [[ "$address_scheme" == "http" ]] || address_scheme="tcp"
+    app_show_addresses "$primary_host" "$address_scheme"
     info "后续可使用 k app domain $app_id 添加域名访问"
 }
 
@@ -426,7 +457,7 @@ app_update_restore_snapshot() {
 }
 
 app_update_locked() {
-    local app_id="$1" assume_yes="$2" force="$3" manifest_file app_dir host_port ports_json image old_image_id container_name container_id digest
+    local app_id="$1" assume_yes="$2" force="$3" manifest_file app_dir host_port ports_json image target_image old_image_id container_name container_id digest
     local current_version target_version rollback_archive rollback_ok=0
     require_root || return
     docker_runtime_ready || { fail "Docker 服务不可用" 69; return; }
@@ -437,6 +468,7 @@ app_update_locked() {
     ports_json="$(state_ports_json "$app_id")"
     host_port="$(ports_json_primary_host "$ports_json")"
     image="$(state_get "$app_id" image)"
+    target_image="$(manifest_get "$manifest_file" services.app.image)"
     current_version="$(state_get "$app_id" version)"
     target_version="$(manifest_get "$manifest_file" version)"
     old_image_id="$(docker image inspect -f '{{.Id}}' "$image" 2>/dev/null || true)"
@@ -468,7 +500,7 @@ app_update_locked() {
     [[ "$(state_get "$app_id" accessMode)" == "domain_only" ]] && bind_address="127.0.0.1"
     compose_generate "$manifest_file" "$ports_json" "$app_dir/compose.yml.new" "$bind_address" || return
     mv -f "$app_dir/compose.yml.new" "$app_dir/compose.yml" || return
-    if docker_compose -f "$app_dir/compose.yml" -p "shdome-$app_id" pull && \
+    if app_compose_pull_or_cached "$app_dir/compose.yml" "shdome-$app_id" "$target_image" && \
        docker_compose -f "$app_dir/compose.yml" -p "shdome-$app_id" up -d && \
        app_healthcheck "$manifest_file" "$host_port"; then
         install -m 600 "$manifest_file" "$app_dir/manifest.json" || return

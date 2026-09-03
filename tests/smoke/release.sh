@@ -33,6 +33,9 @@ grep -Fqx "    : \"\${SHDOME_RELEASE_VERSION:=v0.0.0-test}\"" "$PACKAGE_ROOT/src
 bash -n "$PACKAGE_ROOT/src/shdome.sh"
 [[ -x "$PACKAGE_ROOT/bin/k" && -x "$PACKAGE_ROOT/bootstrap/install.sh" ]]
 [[ "$(stat -c '%a' "$PACKAGE_ROOT/README.md")" == "644" ]]
+[[ -f "$PACKAGE_ROOT/docs/极简应用市场设计.md" ]]
+[[ -f "$PACKAGE_ROOT/docs/自动镜像源设计.md" ]]
+[[ -f "$PACKAGE_ROOT/src/modules/app_market/image_source.sh" ]]
 [[ "$(stat -c '%a' "$PACKAGE_ROOT/bin/k")" == "755" ]]
 if find "$PACKAGE_ROOT" -type f -perm /022 -print -quit | grep -q .; then
     printf '发布包包含可被组或其他用户写入的文件\n' >&2
@@ -62,5 +65,13 @@ version_output="$(bash "$PACKAGE_ROOT/src/shdome.sh" version)"
 grep -q '^SHDome 0.0.0-test$' <<<"$version_output"
 details_output="$(bash "$PACKAGE_ROOT/src/shdome.sh" app details gitea)"
 grep -q '2222/tcp' <<<"$details_output"
+
+if command -v openssl >/dev/null 2>&1; then
+    catalog_key="$TEST_ROOT/catalog-private.pem"
+    openssl genpkey -algorithm ED25519 -out "$catalog_key" >/dev/null 2>&1
+    bash "$PROJECT_DIR/scripts/build-catalog.sh" test-release "$catalog_key" >/dev/null
+    [[ -s "$PROJECT_DIR/dist/catalog/catalog-test-release.tar.gz" ]]
+    [[ -s "$PROJECT_DIR/dist/catalog/catalog-test-release.tar.gz.sig" ]]
+fi
 
 printf 'Release smoke tests passed\n'

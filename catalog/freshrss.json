@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "id": "freshrss",
+  "name": "FreshRSS",
+  "version": "1.29.1",
+  "description": "轻量级自托管 RSS 聚合与阅读服务",
+  "category": "信息与阅读",
+  "architectures": ["amd64", "arm64"],
+  "services": {
+    "app": {
+      "image": "freshrss/freshrss:1.29.1-alpine",
+      "containerName": "shdome-freshrss",
+      "containerPort": 80
+    }
+  },
+  "resources": {"diskGB": 1, "memoryMB": 256},
+  "environment": {"CRON_MIN": "3,33"},
+  "volumes": [
+    {"source": "data", "target": "/var/www/FreshRSS/data", "type": "directory"},
+    {"source": "extensions", "target": "/var/www/FreshRSS/extensions", "type": "directory"}
+  ],
+  "backup": {"strategy": "cold-filesystem"},
+  "healthcheck": {"type": "http", "path": "/", "timeoutSeconds": 180},
+  "routing": {"enabled": true, "defaultAccessMode": "direct", "defaultHostPort": 8086}
+}
