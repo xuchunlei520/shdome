@@ -216,6 +216,8 @@ for manifest in "$PROJECT_DIR"/tests/fixtures/failure-app/*.json; do
     manifest_validate "$manifest"
 done
 
+export DOCKER_CONFIG="$TEST_ROOT/empty-docker-config"
+mkdir -p "$DOCKER_CONFIG"
 image_source_is_docker_hub redis:7-alpine
 image_source_is_docker_hub vaultwarden/server:1.37.2-alpine
 image_source_is_docker_hub docker.io/library/redis:7-alpine
