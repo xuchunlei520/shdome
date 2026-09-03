@@ -365,7 +365,8 @@ python3 -c 'import json,sys; value=json.load(open(sys.argv[1])); assert value["m
 image_source_state_record https://docker.1ms.run failed "" timeout
 image_source_state_record https://docker.1ms.run failed "" timeout
 image_source_state_in_cooldown https://docker.1ms.run
-image_source_status | grep -q 'https://docker.1ms.run：拉取失败.*连续失败 2 次'
+image_source_status_output="$(image_source_status)"
+grep -q 'https://docker.1ms.run：拉取失败.*连续失败 2 次' <<<"$image_source_status_output"
 image_source_state_record https://docker.1ms.run success 25
 if image_source_state_in_cooldown https://docker.1ms.run; then exit 1; fi
 (
