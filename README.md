@@ -94,7 +94,7 @@ SHDOME_ROOT=/tmp/shdome-dev bash src/shdome.sh app list
 
 ## 验证状态
 
-项目已通过 ShellCheck、Python/Node 单元测试、Docker 集成测试，以及 5 个发行版 × 2 个架构的 GitHub Actions 矩阵。`v0.1.7` 已通过完整发布 CI 和生产入口隔离安装验收；`v0.1.6` 已在公网 Ubuntu VPS 完成短命令升级、真实 TTY、HTTPS 和 `direct/domain_only` 切换验收。
+项目已通过 ShellCheck、Python/Node 单元测试、Docker 集成测试，以及 5 个发行版 × 2 个架构的 GitHub Actions 矩阵。`v0.1.8` 已通过完整发布 CI，生产入口已固定到对应 Release、SHA-256 和 installer commit；`v0.1.6` 已在公网 Ubuntu VPS 完成短命令升级、真实 TTY、HTTPS 和 `direct/domain_only` 切换验收。
 
 ## 文档
 
