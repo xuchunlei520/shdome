@@ -96,7 +96,7 @@ SHDOME_ROOT=/tmp/shdome-dev bash src/shdome.sh app list
 
 ## 验证状态
 
-项目通过 ShellCheck、Python/Node 单元测试、Docker 集成测试，以及 5 个发行版 × 2 个架构的 GitHub Actions 矩阵。`v0.2.0` 增加 Schema 2 多容器应用和直连地址展示；生产发布状态见[实现验收矩阵](./docs/实现验收矩阵.md)。
+项目通过 ShellCheck、Python/Node 单元测试、Docker 集成测试，以及 5 个发行版 × 2 个架构的 GitHub Actions 矩阵。`v0.2.0` 的 Schema 2 多容器应用和直连地址展示已通过完整发布 CI，生产入口已固定到对应 Release、SHA-256 和 installer commit；详情见[实现验收矩阵](./docs/实现验收矩阵.md)。
 
 ## 文档
 
