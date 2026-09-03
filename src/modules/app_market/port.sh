@@ -35,7 +35,7 @@ for path in glob.glob(os.path.join(root, "*", "state.json")):
         continue
     if state.get("id") == current:
         continue
-    registered = state.get("ports") or [{"hostPort": state.get("hostPort")}]
+    registered = state.get("ports", [])
     if any(mapping.get("hostPort") == port and (not protocol or mapping.get("protocol", "tcp") == protocol) for mapping in registered):
         print(state.get("id", "unknown"))
         raise SystemExit(0)

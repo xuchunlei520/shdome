@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "id": "alist",
   "name": "AList",
   "version": "3.63.0",
@@ -10,15 +10,17 @@
     "app": {
       "image": "xhofe/alist:v3.63.0",
       "containerName": "shdome-alist",
-      "containerPort": 5244
+      "environment": {"PUID": 0, "PGID": 0, "UMASK": "022"},
+      "volumes": [
+        {"source": "data", "target": "/opt/alist/data", "type": "directory"}
+      ]
     }
   },
   "resources": {"diskGB": 1, "memoryMB": 256},
-  "environment": {"PUID": 0, "PGID": 0, "UMASK": "022"},
-  "volumes": [
-    {"source": "data", "target": "/opt/alist/data", "type": "directory"}
+  "ports": [
+    {"name": "http", "service": "app", "containerPort": 5244, "defaultHostPort": 5244, "protocol": "tcp", "primary": true}
   ],
   "backup": {"strategy": "cold-filesystem"},
-  "healthcheck": {"type": "http", "path": "/", "timeoutSeconds": 120},
-  "routing": {"enabled": true, "defaultAccessMode": "direct", "defaultHostPort": 5244}
+  "healthcheck": {"type": "http", "service": "app", "port": "http", "path": "/", "timeoutSeconds": 120},
+  "routing": {"enabled": true, "service": "app", "port": "http", "scheme": "http", "defaultAccessMode": "direct"}
 }

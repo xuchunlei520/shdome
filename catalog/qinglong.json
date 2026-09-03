@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "id": "qinglong",
   "name": "青龙面板",
   "version": "2.17.12",
@@ -10,24 +10,28 @@
     "app": {
       "image": "whyour/qinglong:2.17.12",
       "containerName": "shdome-qinglong",
-      "containerPort": 5700
+      "environment": {"QL_BRANCH": "master"},
+      "volumes": [
+        {"source": "ql-data", "target": "/ql/data"}
+      ]
     }
   },
   "resources": {"diskGB": 2, "memoryMB": 512},
-  "environment": {
-    "QL_BRANCH": "master"
-  },
-  "volumes": [
-    {"source": "ql-data", "target": "/ql/data"}
+  "ports": [
+    {"name": "http", "service": "app", "containerPort": 5700, "defaultHostPort": 5700, "protocol": "tcp", "primary": true}
   ],
   "healthcheck": {
     "type": "http",
+    "service": "app",
+    "port": "http",
     "path": "/",
     "timeoutSeconds": 180
   },
   "routing": {
     "enabled": true,
-    "defaultAccessMode": "direct",
-    "defaultHostPort": 5700
+    "service": "app",
+    "port": "http",
+    "scheme": "http",
+    "defaultAccessMode": "direct"
   }
 }

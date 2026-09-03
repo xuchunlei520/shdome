@@ -82,7 +82,8 @@ catalog_resolve_selector() {
 }
 
 app_runtime_status() {
-    local app_id="$1" container_name manifest_file installed_version catalog_version
+    local app_id="$1" service_name image container_name container_id image_digest status
+    local manifest_file installed_version catalog_version running=0 stopped=0 missing=0
     if ! state_exists "$app_id"; then
         printf '未安装'
         return
@@ -96,16 +97,23 @@ app_runtime_status() {
             return
         fi
     fi
-    container_name="$(state_get "$app_id" containerName 2>/dev/null || true)"
-    if command -v docker >/dev/null 2>&1 && [[ -n "$container_name" ]]; then
-        case "$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null || true)" in
-            running) printf '运行中' ;;
-            exited|dead) printf '已停止' ;;
-            '') printf '状态缺失' ;;
-            *) printf '异常' ;;
-        esac
-    else
+    if ! command -v docker >/dev/null 2>&1; then
         printf '已登记'
+        return
+    fi
+    while IFS=$'\t' read -r service_name image container_name container_id image_digest; do
+        status="$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null || true)"
+        case "$status" in
+            running) running=$((running + 1)) ;;
+            exited|dead) stopped=$((stopped + 1)) ;;
+            '') missing=$((missing + 1)) ;;
+            *) printf '异常'; return ;;
+        esac
+    done < <(state_services_each "$app_id")
+    if ((missing > 0)); then printf '状态缺失'
+    elif ((stopped > 0 && running == 0)); then printf '已停止'
+    elif ((stopped > 0)); then printf '部分运行'
+    else printf '运行中'
     fi
 }
 
@@ -176,20 +184,21 @@ for path, source in paths:
         if state.get("version") != manifest.get("version"):
             runtime_status = "update_available"
         elif shutil.which("docker"):
+            containers = [service["containerName"] for service in state.get("services", {}).values()]
             completed = subprocess.run(
-                ["docker", "inspect", "-f", "{{.State.Status}}", state.get("containerName", "")],
+                ["docker", "inspect", "-f", "{{.State.Status}}", *containers],
                 text=True, capture_output=True,
             )
-            runtime_status = completed.stdout.strip() if completed.returncode == 0 else "missing"
-    ports = manifest.get("ports")
-    if ports is None:
-        ports = [{
-            "name": "http",
-            "containerPort": manifest["services"]["app"]["containerPort"],
-            "defaultHostPort": manifest["routing"]["defaultHostPort"],
-            "protocol": "tcp",
-            "primary": True,
-        }]
+            statuses = completed.stdout.splitlines()
+            if completed.returncode != 0 or len(statuses) != len(containers):
+                runtime_status = "missing"
+            elif all(status == "running" for status in statuses):
+                runtime_status = "running"
+            elif all(status in {"exited", "dead"} for status in statuses):
+                runtime_status = "exited"
+            else:
+                runtime_status = "partial"
+    ports = manifest["ports"]
     result.append({
         "id": manifest["id"], "name": manifest["name"], "version": manifest["version"],
         "category": manifest["category"], "description": manifest["description"],
@@ -224,7 +233,7 @@ app_installed() {
 }
 
 app_details() {
-    local app_id="$1" manifest_file ports_json port_name host_port container_port protocol primary suffix
+    local app_id="$1" manifest_file ports_json port_name host_port container_port protocol primary service_name suffix image container_name
     state_storage_require_readable || return
     manifest_file="$(catalog_manifest_path "$app_id")" || { fail "应用目录中不存在：$app_id" 66; return; }
     manifest_validate "$manifest_file" || return
@@ -233,14 +242,16 @@ app_details() {
     printf '分类：%s\n' "$(manifest_get "$manifest_file" category)"
     printf '说明：%s\n' "$(manifest_get "$manifest_file" description)"
     printf '来源：%s\n' "$(catalog_manifest_source "$manifest_file")"
-    printf '镜像：%s\n' "$(manifest_get "$manifest_file" services.app.image)"
+    while IFS=$'\t' read -r service_name image container_name; do
+        printf '服务：%-12s %s（%s）\n' "$service_name" "$image" "$container_name"
+    done < <(manifest_services_each "$manifest_file")
     printf '架构：%s\n' "$(manifest_get "$manifest_file" architectures)"
     printf '资源：磁盘 %s GB，内存 %s MB\n' "$(manifest_get "$manifest_file" resources.diskGB)" "$(manifest_get "$manifest_file" resources.memoryMB)"
     ports_json="$(manifest_ports_json "$manifest_file")"
-    while IFS=$'\t' read -r port_name host_port container_port protocol primary; do
+    while IFS=$'\t' read -r port_name host_port container_port protocol primary service_name; do
         suffix=""
         [[ "$primary" != "true" ]] || suffix="（主服务）"
-        printf '建议端口：%-12s %s/%s → %s/%s%s\n' "$port_name" "$host_port" "$protocol" "$container_port" "$protocol" "$suffix"
+        printf '建议端口：%-12s %s/%s → %s:%s/%s%s\n' "$port_name" "$host_port" "$protocol" "$service_name" "$container_port" "$protocol" "$suffix"
     done < <(ports_json_each "$ports_json")
     printf '状态：%s\n' "$(app_runtime_status "$app_id")"
 }

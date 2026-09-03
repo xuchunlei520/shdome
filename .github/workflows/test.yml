@@ -83,7 +83,7 @@ jobs:
           }
           run_k app install uptime-kuma --port 18081 --yes
           curl -fsS --retry 10 --retry-delay 2 http://127.0.0.1:18081/ >/dev/null
-          run_k app status uptime-kuma --json | python3 -c 'import json,sys; value=json.load(sys.stdin); assert value["runtimeStatus"] == "running" and value["hostPort"] == 18081'
+          run_k app status uptime-kuma --json | python3 -c 'import json,sys; value=json.load(sys.stdin); assert value["services"]["app"]["runtimeStatus"] == "running"; assert next(port["hostPort"] for port in value["ports"] if port["primary"]) == 18081'
           run_k app reconcile uptime-kuma
           run_k app backup uptime-kuma --yes
           backup_count="$(sudo find "$runtime/backups/apps/uptime-kuma" -name '*.tar.gz' | wc -l)"
@@ -149,7 +149,7 @@ jobs:
                 exit 1
               fi
             fi
-            port="$(python3 -c "import json; print(json.load(open('$fixture_catalog/demo-$item.json'))['routing']['defaultHostPort'])")"
+            port="$(python3 -c "import json; print(next(port['defaultHostPort'] for port in json.load(open('$fixture_catalog/demo-$item.json'))['ports'] if port['primary']))")"
             curl -fsS "http://127.0.0.1:$port/" >/dev/null
             openssl req -x509 -nodes -newkey rsa:2048 -days 2 \
               -subj "/CN=$item.example.com" -addext "subjectAltName=DNS:$item.example.com" \
@@ -161,12 +161,12 @@ jobs:
           done
           sudo docker restart shdome-demo-one shdome-demo-two shdome-demo-three shdome-gateway >/dev/null
           for item in one two three; do
-            port="$(python3 -c "import json; print(json.load(open('$fixture_catalog/demo-$item.json'))['routing']['defaultHostPort'])")"
+            port="$(python3 -c "import json; print(next(port['defaultHostPort'] for port in json.load(open('$fixture_catalog/demo-$item.json'))['ports'] if port['primary']))")"
             curl -fsS --retry 10 --retry-delay 2 "http://127.0.0.1:$port/" >/dev/null
             curl -kfsS --retry 10 --retry-delay 2 --resolve "$item.example.com:443:127.0.0.1" "https://$item.example.com/" >/dev/null
           done
-          sudo mkdir -p "$runtime/apps/demo-three/data"
-          printf 'pre-update-data\n' | sudo tee "$runtime/apps/demo-three/data/rollback-marker.txt" >/dev/null
+          sudo mkdir -p "$runtime/apps/demo-three/data/app"
+          printf 'pre-update-data\n' | sudo tee "$runtime/apps/demo-three/data/app/rollback-marker.txt" >/dev/null
           python3 - "$fixture_catalog/demo-three.json" <<'PY'
           import json, sys
           path = sys.argv[1]
@@ -183,13 +183,40 @@ jobs:
           fi
           curl -fsS http://127.0.0.1:18084/ >/dev/null
           sudo python3 -c "import json; value=json.load(open('$runtime/apps/demo-three/state.json')); assert value['version'] == '1.28.0'"
-          sudo grep -qx 'pre-update-data' "$runtime/apps/demo-three/data/rollback-marker.txt"
+          sudo grep -qx 'pre-update-data' "$runtime/apps/demo-three/data/app/rollback-marker.txt"
           test -z "$(sudo find "$runtime/apps" -maxdepth 1 -type d -name '.failed-update-demo-three-*' -print -quit)"
           run_k app remove demo-two --purge --yes
           curl -kfsS --resolve one.example.com:443:127.0.0.1 https://one.example.com/ >/dev/null
           curl -kfsS --resolve three.example.com:443:127.0.0.1 https://three.example.com/ >/dev/null
           run_k app remove demo-one --purge --yes
           run_k app remove demo-three --purge --yes
+
+      - name: Verify app, PostgreSQL and Redis as one application
+        run: |
+          set -Eeuo pipefail
+          runtime=/tmp/shdome-multi-container
+          fixture_catalog="$GITHUB_WORKSPACE/tests/fixtures/multi-container"
+          run_k() {
+            sudo env SHDOME_ROOT="$runtime" SHDOME_CATALOG_DIR="$fixture_catalog" \
+              bash "$GITHUB_WORKSPACE/src/shdome.sh" "$@"
+          }
+          run_k app install demo-stack --port 18110 --yes
+          curl -fsS --retry 10 --retry-delay 2 http://127.0.0.1:18110/ >/dev/null
+          for container in shdome-demo-stack-app shdome-demo-stack-database shdome-demo-stack-redis; do
+            test "$(docker inspect -f '{{.State.Status}}' "$container")" = running
+          done
+          sudo python3 - "$runtime/apps/demo-stack/state.json" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              state = json.load(handle)
+          assert state["schema"] == 2
+          assert set(state["services"]) == {"app", "database", "redis"}
+          PY
+          test -z "$(docker port shdome-demo-stack-database)"
+          test -z "$(docker port shdome-demo-stack-redis)"
+          run_k app reconcile demo-stack
+          run_k app backup demo-stack --yes
+          run_k app remove demo-stack --purge --yes
 
       - name: Verify failed health check is not registered
         run: |

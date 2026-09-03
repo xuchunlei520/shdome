@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "id": "gitea",
   "name": "Gitea",
   "version": "1.22.6",
@@ -9,20 +9,21 @@
   "services": {
     "app": {
       "image": "gitea/gitea:1.22.6",
-      "containerName": "shdome-gitea"
+      "containerName": "shdome-gitea",
+      "environment": {
+        "USER_UID": "1000",
+        "USER_GID": "1000"
+      },
+      "volumes": [
+        {"source": "gitea-data", "target": "/data"}
+      ]
     }
   },
   "resources": {"diskGB": 2, "memoryMB": 512},
-  "environment": {
-    "USER_UID": "1000",
-    "USER_GID": "1000"
-  },
-  "volumes": [
-    {"source": "gitea-data", "target": "/data"}
-  ],
   "ports": [
     {
       "name": "http",
+      "service": "app",
       "containerPort": 3000,
       "defaultHostPort": 3000,
       "protocol": "tcp",
@@ -30,6 +31,7 @@
     },
     {
       "name": "ssh",
+      "service": "app",
       "containerPort": 22,
       "defaultHostPort": 2222,
       "protocol": "tcp",
@@ -38,11 +40,16 @@
   ],
   "healthcheck": {
     "type": "http",
+    "service": "app",
+    "port": "http",
     "path": "/",
     "timeoutSeconds": 180
   },
   "routing": {
     "enabled": true,
+    "service": "app",
+    "port": "http",
+    "scheme": "http",
     "defaultAccessMode": "direct"
   }
 }

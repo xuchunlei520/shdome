@@ -29,7 +29,7 @@ app_market_menu() {
 }
 
 app_manage_menu() {
-    local app_id="$1" choice manifest_file app_name status current_domain access_mode direct_status
+    local app_id="$1" choice manifest_file app_name status current_domain access_mode direct_status direct_address direct_addresses
     app_name="$app_id"
     manifest_file="$(catalog_manifest_path "$app_id" 2>/dev/null || true)"
     if [[ -n "$manifest_file" ]]; then
@@ -44,7 +44,13 @@ app_manage_menu() {
             current_domain="$(state_get "$app_id" domain 2>/dev/null || true)"
             access_mode="$(state_get "$app_id" accessMode 2>/dev/null || printf 'direct')"
             direct_status="允许"
-            [[ "$access_mode" != "domain_only" ]] || direct_status="已阻止"
+            if [[ "$access_mode" == "domain_only" ]]; then
+                direct_status="已阻止"
+            else
+                direct_addresses="$(app_show_direct_addresses "$app_id")"
+                direct_address="${direct_addresses%%$'\n'*}"
+                direct_status="允许  $direct_address"
+            fi
         fi
         printf '\n应用：%s\n状态：%s\n' "$app_name" "$status"
         printf '域名访问：%s\nIP+端口访问：%s\n' "${current_domain:-未配置}" "$direct_status"

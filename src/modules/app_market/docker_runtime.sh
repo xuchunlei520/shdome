@@ -84,43 +84,52 @@ manifest_path, ports_json, app_dir, output, bind_address, publish_ipv6 = sys.arg
 with open(manifest_path, encoding="utf-8") as handle:
     item = json.load(handle)
 ports = json.loads(ports_json)
-service = item["services"]["app"]
 def q(value):
     return json.dumps(str(value), ensure_ascii=False)
-lines = [
-    "services:",
-    "  app:",
-    f"    image: {q(service['image'])}",
-    f"    container_name: {q(service['containerName'])}",
-    "    restart: unless-stopped",
-    "    labels:",
-    "      io.shdome.managed: \"true\"",
-    f"      io.shdome.app-id: {q(item['id'])}",
-    "    ports:",
-]
-for port in ports:
-    mapping = f"{bind_address}:{port['hostPort']}:{port['containerPort']}"
-    if port.get("protocol", "tcp") != "tcp":
-        mapping += "/" + port["protocol"]
-    lines.append(f"      - {q(mapping)}")
-    if publish_ipv6 == "1":
-        ipv6_mapping = f"[::]:{port['hostPort']}:{port['containerPort']}"
-        if port.get("protocol", "tcp") != "tcp":
-            ipv6_mapping += "/" + port["protocol"]
-        lines.append(f"      - {q(ipv6_mapping)}")
-if item.get("secrets"):
-    lines.extend(["    env_file:", "      - .env"])
-environment = item.get("environment", {})
-if environment:
-    lines.append("    environment:")
-    for key, value in sorted(environment.items()):
-        lines.append(f"      {key}: {q(value)}")
-volumes = item.get("volumes", [])
-if volumes:
-    lines.append("    volumes:")
-    for volume in volumes:
-        source = os.path.join(app_dir, "data", volume["source"])
-        lines.append(f"      - {q(source + ':' + volume['target'])}")
+lines = ["services:"]
+for service_name, service in item["services"].items():
+    lines.extend([
+        f"  {service_name}:",
+        f"    image: {q(service['image'])}",
+        f"    container_name: {q(service['containerName'])}",
+        "    restart: unless-stopped",
+        "    labels:",
+        "      io.shdome.managed: \"true\"",
+        f"      io.shdome.app-id: {q(item['id'])}",
+        f"      io.shdome.service: {q(service_name)}",
+    ])
+    service_ports = [port for port in ports if port["service"] == service_name]
+    if service_ports:
+        lines.append("    ports:")
+        for port in service_ports:
+            mapping = f"{bind_address}:{port['hostPort']}:{port['containerPort']}"
+            if port.get("protocol", "tcp") != "tcp":
+                mapping += "/" + port["protocol"]
+            lines.append(f"      - {q(mapping)}")
+            if publish_ipv6 == "1":
+                ipv6_mapping = f"[::]:{port['hostPort']}:{port['containerPort']}"
+                if port.get("protocol", "tcp") != "tcp":
+                    ipv6_mapping += "/" + port["protocol"]
+                lines.append(f"      - {q(ipv6_mapping)}")
+    environment = service.get("environment", {})
+    secret_environment = service.get("secretEnvironment", {})
+    if secret_environment:
+        lines.extend(["    env_file:", f"      - .env.{service_name}"])
+    if environment:
+        lines.append("    environment:")
+        for key, value in sorted(environment.items()):
+            lines.append(f"      {key}: {q(value)}")
+    volumes = service.get("volumes", [])
+    if volumes:
+        lines.append("    volumes:")
+        for volume in volumes:
+            source = os.path.join(app_dir, "data", service_name, volume["source"])
+            lines.append(f"      - {q(source + ':' + volume['target'])}")
+    depends_on = service.get("dependsOn", [])
+    if depends_on:
+        lines.append("    depends_on:")
+        for dependency in depends_on:
+            lines.append(f"      - {dependency}")
 with open(output, "w", encoding="utf-8") as handle:
     handle.write("\n".join(lines) + "\n")
 PY

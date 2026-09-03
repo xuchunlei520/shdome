@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "id": "cloudreve",
   "name": "Cloudreve",
   "version": "3.8.3",
@@ -10,29 +10,34 @@
     "app": {
       "image": "cloudreve/cloudreve:3.8.3",
       "containerName": "shdome-cloudreve",
-      "containerPort": 5212
+      "volumes": [
+        {"source": "uploads", "target": "/cloudreve/uploads"},
+        {"source": "avatar", "target": "/cloudreve/avatar"},
+        {"source": "config", "target": "/cloudreve/config"},
+        {"source": "cloudreve.db", "target": "/cloudreve/cloudreve.db", "type": "file"}
+      ]
     }
   },
   "resources": {"diskGB": 2, "memoryMB": 512},
-  "environment": {},
-  "volumes": [
-    {"source": "uploads", "target": "/cloudreve/uploads"},
-    {"source": "avatar", "target": "/cloudreve/avatar"},
-    {"source": "config", "target": "/cloudreve/config"},
-    {"source": "cloudreve.db", "target": "/cloudreve/cloudreve.db", "type": "file"}
+  "ports": [
+    {"name": "http", "service": "app", "containerPort": 5212, "defaultHostPort": 5212, "protocol": "tcp", "primary": true}
   ],
   "backup": {
     "strategy": "cold-filesystem",
-    "logical": {"type": "sqlite", "source": "cloudreve.db", "output": "cloudreve.sql"}
+    "logical": {"type": "sqlite", "service": "app", "source": "cloudreve.db", "output": "cloudreve.sql"}
   },
   "healthcheck": {
     "type": "http",
+    "service": "app",
+    "port": "http",
     "path": "/",
     "timeoutSeconds": 120
   },
   "routing": {
     "enabled": true,
-    "defaultAccessMode": "direct",
-    "defaultHostPort": 5212
+    "service": "app",
+    "port": "http",
+    "scheme": "http",
+    "defaultAccessMode": "direct"
   }
 }

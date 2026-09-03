@@ -46,15 +46,15 @@ PY
 }
 
 state_write() {
-    local app_id="$1" manifest_file="$2" ports_json="$3" container_id="$4" image_digest="$5"
+    local app_id="$1" manifest_file="$2" ports_json="$3" services_json="$4"
     local app_dir state_file temp_file
     app_dir="$SHDOME_APPS_DIR/$app_id"
     state_file="$app_dir/state.json"
     mkdir -p "$app_dir"
     temp_file="$(mktemp "$app_dir/.state.XXXXXX")"
-    python3 - "$manifest_file" "$temp_file" "$ports_json" "$container_id" "$image_digest" <<'PY'
+    python3 - "$manifest_file" "$temp_file" "$ports_json" "$services_json" <<'PY'
 import hashlib, json, os, sys
-manifest_path, output, ports_json, container_id, digest = sys.argv[1:]
+manifest_path, output, ports_json, services_json = sys.argv[1:]
 with open(manifest_path, "rb") as handle:
     raw = handle.read()
 manifest = json.loads(raw)
@@ -65,19 +65,13 @@ if os.path.isfile(state_path):
         old = json.load(handle)
 now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).replace(microsecond=0).isoformat()
 ports = json.loads(ports_json)
-primary = next(port for port in ports if port.get("primary"))
 state = {
-    "schema": 1,
+    "schema": 2,
     "id": manifest["id"],
     "name": manifest["name"],
     "version": manifest["version"],
-    "image": manifest["services"]["app"]["image"],
-    "imageDigest": digest,
-    "containerName": manifest["services"]["app"]["containerName"],
-    "containerId": container_id,
+    "services": json.loads(services_json),
     "ports": ports,
-    "containerPort": primary["containerPort"],
-    "hostPort": primary["hostPort"],
     "accessMode": old.get("accessMode", "direct"),
     "domain": old.get("domain", ""),
     "dataDirectory": os.path.dirname(output),
@@ -99,18 +93,18 @@ state_remove() {
 }
 
 state_ports_json() {
-    local app_id="$1" ports
-    ports="$(state_get "$app_id" ports 2>/dev/null || true)"
-    if [[ -n "$ports" ]]; then
-        printf '%s\n' "$ports"
-        return
-    fi
-    python3 - "$(state_get "$app_id" hostPort)" "$(state_get "$app_id" containerPort)" <<'PY'
+    local app_id="$1"
+    state_get "$app_id" ports
+}
+
+state_services_each() {
+    local app_id="$1"
+    python3 - "$(state_file_for "$app_id")" <<'PY'
 import json, sys
-print(json.dumps([{
-    "name": "http", "hostPort": int(sys.argv[1]), "containerPort": int(sys.argv[2]),
-    "protocol": "tcp", "primary": True,
-}], separators=(",", ":")))
+with open(sys.argv[1], encoding="utf-8") as handle:
+    state = json.load(handle)
+for name, service in state["services"].items():
+    print(name, service["image"], service["containerName"], service["containerId"], service.get("imageDigest", ""), sep="\t")
 PY
 }
 

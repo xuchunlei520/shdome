@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "id": "vaultwarden",
   "name": "Vaultwarden",
   "version": "1.37.2",
@@ -10,15 +10,17 @@
     "app": {
       "image": "vaultwarden/server:1.37.2-alpine",
       "containerName": "shdome-vaultwarden",
-      "containerPort": 80
+      "environment": {"SIGNUPS_ALLOWED": true},
+      "volumes": [
+        {"source": "data", "target": "/data", "type": "directory"}
+      ]
     }
   },
   "resources": {"diskGB": 1, "memoryMB": 256},
-  "environment": {"SIGNUPS_ALLOWED": true},
-  "volumes": [
-    {"source": "data", "target": "/data", "type": "directory"}
+  "ports": [
+    {"name": "http", "service": "app", "containerPort": 80, "defaultHostPort": 8085, "protocol": "tcp", "primary": true}
   ],
   "backup": {"strategy": "cold-filesystem"},
-  "healthcheck": {"type": "http", "path": "/alive", "timeoutSeconds": 120},
-  "routing": {"enabled": true, "defaultAccessMode": "direct", "defaultHostPort": 8085}
+  "healthcheck": {"type": "http", "service": "app", "port": "http", "path": "/alive", "timeoutSeconds": 120},
+  "routing": {"enabled": true, "service": "app", "port": "http", "scheme": "http", "defaultAccessMode": "direct"}
 }

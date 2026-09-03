@@ -85,6 +85,7 @@ port_items = []
 for index, port in enumerate(ports):
     port_items.append({
         "name": "main" if index == 0 else f"port-{port}",
+        "service": "app",
         "containerPort": port,
         "defaultHostPort": preferred(port),
         "protocol": "tcp",
@@ -102,7 +103,7 @@ for index, target in enumerate(targets, 1):
 
 version = image.rsplit(":", 1)[1]
 manifest = {
-    "schema": 1,
+    "schema": 2,
     "id": app_id,
     "name": name,
     "version": version,
@@ -112,15 +113,13 @@ manifest = {
     "services": {"app": {
         "image": image,
         "containerName": f"shdome-{app_id}",
-        "containerPort": primary,
+        "volumes": volume_items,
     }},
     "resources": {"diskGB": 1, "memoryMB": 256},
-    "environment": {},
-    "volumes": volume_items,
     "ports": port_items,
     "backup": {"strategy": "cold-filesystem"},
-    "healthcheck": {"type": "tcp", "timeoutSeconds": 120},
-    "routing": {"enabled": True, "defaultAccessMode": "direct", "defaultHostPort": preferred(primary)},
+    "healthcheck": {"type": "tcp", "service": "app", "port": "main", "timeoutSeconds": 120},
+    "routing": {"enabled": True, "service": "app", "port": "main", "scheme": "tcp", "defaultAccessMode": "direct"},
 }
 with open(output, "w", encoding="utf-8") as handle:
     json.dump(manifest, handle, ensure_ascii=False, indent=2)
@@ -292,12 +291,13 @@ custom_validate() {
 }
 
 custom_list() {
-    local manifest_file found=0
+    local manifest_file found=0 routing_service
     printf '%-20s %-24s %s\n' '应用 ID' '名称' '镜像'
     while IFS= read -r manifest_file; do
         [[ -n "$manifest_file" ]] || continue
         manifest_validate "$manifest_file" >/dev/null 2>&1 || continue
-        printf '%-20s %-24s %s\n' "$(manifest_get "$manifest_file" id)" "$(manifest_get "$manifest_file" name)" "$(manifest_get "$manifest_file" services.app.image)"
+        routing_service="$(manifest_get "$manifest_file" routing.service)"
+        printf '%-20s %-24s %s\n' "$(manifest_get "$manifest_file" id)" "$(manifest_get "$manifest_file" name)" "$(manifest_get "$manifest_file" "services.$routing_service.image")"
         found=1
     done < <(find "$SHDOME_CUSTOM_CATALOG_DIR" -maxdepth 1 -type f -name '*.json' -print 2>/dev/null | LC_ALL=C sort)
     [[ "$found" == "1" ]] || info "当前没有自定义应用"

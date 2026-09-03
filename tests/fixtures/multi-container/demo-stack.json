@@ -1,0 +1,39 @@
+{
+  "schema": 2,
+  "id": "demo-stack",
+  "name": "Demo Stack",
+  "version": "1.0.0",
+  "description": "主程序、PostgreSQL 与 Redis 多容器验收应用",
+  "category": "测试",
+  "architectures": ["amd64", "arm64"],
+  "services": {
+    "app": {
+      "image": "nginx:1.28.0-alpine",
+      "containerName": "shdome-demo-stack-app",
+      "environment": {"DATABASE_HOST": "database", "REDIS_HOST": "redis"},
+      "secretEnvironment": {"DATABASE_PASSWORD": "STACK_DATABASE_PASSWORD"},
+      "volumes": [{"source": "app-data", "target": "/var/cache/nginx"}],
+      "dependsOn": ["database", "redis"]
+    },
+    "database": {
+      "image": "postgres:17.6-alpine",
+      "containerName": "shdome-demo-stack-database",
+      "environment": {"POSTGRES_DB": "demo", "POSTGRES_USER": "demo"},
+      "secretEnvironment": {"POSTGRES_PASSWORD": "STACK_DATABASE_PASSWORD"},
+      "volumes": [{"source": "database-data", "target": "/var/lib/postgresql/data"}]
+    },
+    "redis": {
+      "image": "redis:7.4-alpine",
+      "containerName": "shdome-demo-stack-redis",
+      "volumes": [{"source": "redis-data", "target": "/data"}]
+    }
+  },
+  "resources": {"diskGB": 2, "memoryMB": 512},
+  "secrets": [{"name": "STACK_DATABASE_PASSWORD", "bytes": 24}],
+  "ports": [
+    {"name": "http", "service": "app", "containerPort": 80, "defaultHostPort": 18086, "protocol": "tcp", "primary": true}
+  ],
+  "backup": {"strategy": "cold-filesystem"},
+  "healthcheck": {"type": "http", "service": "app", "port": "http", "path": "/", "timeoutSeconds": 60},
+  "routing": {"enabled": true, "service": "app", "port": "http", "scheme": "http", "defaultAccessMode": "direct"}
+}

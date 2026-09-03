@@ -1,8 +1,10 @@
 # SHDome
 
-SHDome 是一个面向 Linux 服务器的模块化管理工具。当前正式版本为 [`v0.1.8`](https://github.com/xuchunlei520/shdome/releases/tag/v0.1.8)，优先提供多应用安装、更新、卸载、独立端口、域名反向代理、HTTPS 证书和访问模式管理。
+SHDome 是一个面向 Linux 服务器的模块化管理工具。当前正式版本为 [`v0.2.0`](https://github.com/xuchunlei520/shdome/releases/tag/v0.2.0)，优先提供单容器及多容器应用安装、更新、卸载、独立端口、域名反向代理、HTTPS 证书和访问模式管理。
 
 默认安装后通过“服务器 IP + 独立宿主机端口”访问应用；添加域名后由共享 Nginx 提供 HTTPS，并默认切换为仅域名访问。后续网站、系统、网络和集群功能以独立模块加入，不改变现有应用命令。
+
+一个应用可以由主程序、数据库和 Redis 等多个容器组成。SHDome 将它们作为同一个 Compose 项目管理，只有清单声明的主服务端口对外发布；允许 IP+端口访问时，管理页直接显示完整访问地址。
 
 ## 快速安装
 
@@ -94,7 +96,7 @@ SHDOME_ROOT=/tmp/shdome-dev bash src/shdome.sh app list
 
 ## 验证状态
 
-项目已通过 ShellCheck、Python/Node 单元测试、Docker 集成测试，以及 5 个发行版 × 2 个架构的 GitHub Actions 矩阵。`v0.1.8` 已通过完整发布 CI，生产入口已固定到对应 Release、SHA-256 和 installer commit；`v0.1.6` 已在公网 Ubuntu VPS 完成短命令升级、真实 TTY、HTTPS 和 `direct/domain_only` 切换验收。
+项目通过 ShellCheck、Python/Node 单元测试、Docker 集成测试，以及 5 个发行版 × 2 个架构的 GitHub Actions 矩阵。`v0.2.0` 增加 Schema 2 多容器应用和直连地址展示；生产发布状态见[实现验收矩阵](./docs/实现验收矩阵.md)。
 
 ## 文档
 

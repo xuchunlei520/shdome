@@ -109,6 +109,25 @@ if catalog_resolve_selector does-not-exist >/dev/null 2>&1; then exit 1; fi
     actual_actions="$(<"$action_file")"
     [[ "$actual_actions" == "$expected_actions" ]]
 )
+(
+    # shellcheck disable=SC2317
+    terminal_read() { printf -v "$1" '%s' 0; }
+    # shellcheck disable=SC2317
+    app_runtime_status() { printf '运行中'; }
+    # shellcheck disable=SC2317
+    state_exists() { return 0; }
+    # shellcheck disable=SC2317
+    state_get() {
+        case "$2" in
+            domain) printf '' ;;
+            accessMode) printf 'direct' ;;
+        esac
+    }
+    # shellcheck disable=SC2317
+    app_show_direct_addresses() { printf 'http://203.0.113.10:3001\n'; }
+    direct_menu_output="$(app_manage_menu uptime-kuma)"
+    grep -Fq 'IP+端口访问：允许  http://203.0.113.10:3001' <<<"$direct_menu_output"
+)
 test_future_menu_handler() { :; }
 menu_register 20 "测试系统模块" test_future_menu_handler
 menu_register 10 "测试网站模块" test_future_menu_handler
@@ -215,6 +234,19 @@ done
 for manifest in "$PROJECT_DIR"/tests/fixtures/failure-app/*.json; do
     manifest_validate "$manifest"
 done
+for manifest in "$PROJECT_DIR"/tests/fixtures/multi-container/*.json; do
+    manifest_validate "$manifest"
+done
+schema_one_manifest="$TEST_ROOT/schema-one.json"
+python3 - "$PROJECT_DIR/catalog/alist.json" "$schema_one_manifest" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as handle:
+    value = json.load(handle)
+value["schema"] = 1
+with open(sys.argv[2], "w", encoding="utf-8") as handle:
+    json.dump(value, handle)
+PY
+if manifest_validate "$schema_one_manifest" >/dev/null 2>&1; then exit 1; fi
 
 export DOCKER_CONFIG="$TEST_ROOT/empty-docker-config"
 mkdir -p "$DOCKER_CONFIG"
@@ -466,15 +498,15 @@ custom_delete custom-demo --yes >/dev/null
 (
     # shellcheck disable=SC2317
     image_source_pull() { return 0; }
-    app_compose_pull_or_cached /tmp/compose.yml shdome-cached example/cached-app:1.0.0 >/dev/null
+    app_compose_pull_or_cached /tmp/compose.yml shdome-cached "$SHDOME_CUSTOM_CATALOG_DIR/cached-app.json" >/dev/null
 )
 (
     # shellcheck disable=SC2317
     image_source_pull() { return 1; }
-    if app_compose_pull_or_cached /tmp/compose.yml shdome-missing example/missing:1.0.0 >/dev/null 2>&1; then exit 1; fi
+    if app_compose_pull_or_cached /tmp/compose.yml shdome-missing "$SHDOME_CUSTOM_CATALOG_DIR/cached-app.json" >/dev/null 2>&1; then exit 1; fi
 )
 [[ -f "$SHDOME_CUSTOM_CATALOG_DIR/quick-app.json" ]]
-[[ "$(manifest_get "$SHDOME_CUSTOM_CATALOG_DIR/quick-app.json" routing.defaultHostPort)" == "18091" ]]
+[[ "$(ports_json_primary_host "$(manifest_ports_json "$SHDOME_CUSTOM_CATALOG_DIR/quick-app.json")")" == "18091" ]]
 [[ "$(manifest_get "$SHDOME_CUSTOM_CATALOG_DIR/quick-app.json" version)" == "1.0.1" ]]
 custom_delete quick-app --yes >/dev/null
 [[ -f "$SHDOME_CUSTOM_CATALOG_DIR/cached-app.json" ]]
@@ -577,9 +609,9 @@ manifest_generate_env "$PROJECT_DIR/catalog/zentao.json" "$env_file"
 
 cloudreve_dir="$TEST_ROOT/cloudreve"
 manifest_prepare_volumes "$PROJECT_DIR/catalog/cloudreve.json" "$cloudreve_dir"
-[[ -d "$cloudreve_dir/data/config" && -d "$cloudreve_dir/data/uploads" ]]
-[[ -f "$cloudreve_dir/data/cloudreve.db" && ! -d "$cloudreve_dir/data/cloudreve.db" ]]
-python3 - "$cloudreve_dir/data/cloudreve.db" <<'PY'
+[[ -d "$cloudreve_dir/data/app/config" && -d "$cloudreve_dir/data/app/uploads" ]]
+[[ -f "$cloudreve_dir/data/app/cloudreve.db" && ! -d "$cloudreve_dir/data/app/cloudreve.db" ]]
+python3 - "$cloudreve_dir/data/app/cloudreve.db" <<'PY'
 import sqlite3, sys
 connection = sqlite3.connect(sys.argv[1])
 connection.execute("CREATE TABLE settings (name TEXT PRIMARY KEY, value TEXT NOT NULL)")
@@ -613,9 +645,61 @@ grep -q '\[::\]:3100:3000' "$app_dir/compose-ipv6.yml"
 SHDOME_FORCE_IPV6=0 compose_generate "$gitea_manifest" "$ports_json" "$app_dir/compose-ipv4.yml" 0.0.0.0
 if grep -q '\[::\]' "$app_dir/compose-ipv4.yml"; then exit 1; fi
 
-state_write gitea "$gitea_manifest" "$ports_json" container-id image-digest
-[[ "$(state_get gitea hostPort)" == "3100" ]]
-[[ "$(state_get gitea containerPort)" == "3000" ]]
+stack_manifest="$PROJECT_DIR/tests/fixtures/multi-container/demo-stack.json"
+stack_ports_json="$(manifest_ports_json "$stack_manifest")"
+stack_dir="$TEST_ROOT/demo-stack"
+manifest_prepare_volumes "$stack_manifest" "$stack_dir"
+manifest_generate_env "$stack_manifest" "$stack_dir/.env"
+compose_generate "$stack_manifest" "$stack_ports_json" "$stack_dir/compose.yml" 0.0.0.0
+grep -q '^  app:$' "$stack_dir/compose.yml"
+grep -q '^  database:$' "$stack_dir/compose.yml"
+grep -q '^  redis:$' "$stack_dir/compose.yml"
+grep -q 'DATABASE_HOST: "database"' "$stack_dir/compose.yml"
+grep -q 'REDIS_HOST: "redis"' "$stack_dir/compose.yml"
+grep -q -- '- .env.app' "$stack_dir/compose.yml"
+grep -q -- '- .env.database' "$stack_dir/compose.yml"
+[[ "$(grep -c '0.0.0.0:' "$stack_dir/compose.yml")" == "1" ]]
+if grep -qE '0\.0\.0\.0:(5432|6379):' "$stack_dir/compose.yml"; then exit 1; fi
+[[ -d "$stack_dir/data/app/app-data" ]]
+[[ -d "$stack_dir/data/database/database-data" ]]
+[[ -d "$stack_dir/data/redis/redis-data" ]]
+grep -Eq '^STACK_DATABASE_PASSWORD=[a-f0-9]{48}$' "$stack_dir/.env"
+stack_password="$(cut -d= -f2 "$stack_dir/.env")"
+grep -Fxq "DATABASE_PASSWORD=$stack_password" "$stack_dir/.env.app"
+grep -Fxq "POSTGRES_PASSWORD=$stack_password" "$stack_dir/.env.database"
+(
+    # shellcheck disable=SC2317
+    docker() {
+        [[ "$*" == *shdome-demo-stack-redis* ]] && printf 'exited\n' || printf 'running\n'
+    }
+    if app_services_running "$stack_manifest"; then exit 1; fi
+)
+(
+    # shellcheck disable=SC2317
+    curl() {
+        case "$*" in
+            *api.ipify.org*) printf '203.0.113.10' ;;
+            *api64.ipify.org*) printf '2001:db8::10' ;;
+        esac
+    }
+    # shellcheck disable=SC2317
+    hostname() { printf '10.0.0.2 2001:db8::10\n'; }
+    addresses="$(app_show_addresses 8080 http)"
+    grep -Fxq 'http://203.0.113.10:8080' <<<"$addresses"
+    grep -Fxq 'http://[2001:db8::10]:8080' <<<"$addresses"
+    if grep -Fq '10.0.0.2' <<<"$addresses"; then exit 1; fi
+    [[ "$(grep -Fc '2001:db8::10' <<<"$addresses")" == "1" ]]
+)
+(
+    # shellcheck disable=SC2317
+    curl() { return 1; }
+    # shellcheck disable=SC2317
+    hostname() { printf '10.0.0.2\n'; }
+    [[ "$(app_show_addresses 8080 http)" == 'http://10.0.0.2:8080' ]]
+)
+
+state_write gitea "$gitea_manifest" "$ports_json" '{"app":{"image":"gitea/gitea:1.22.6","imageDigest":"image-digest","containerName":"shdome-gitea","containerId":"container-id"}}'
+[[ "$(ports_json_primary_host "$(state_ports_json gitea)")" == "3100" ]]
 [[ "$(ports_json_each "$(state_ports_json gitea)" | wc -l | tr -d ' ')" == "2" ]]
 (
     # shellcheck disable=SC2317
@@ -627,8 +711,8 @@ state_write gitea "$gitea_manifest" "$ports_json" container-id image-digest
 )
 install -m 600 "$gitea_manifest" "$app_dir/manifest.json"
 printf 'TEST_SECRET=original\n' >"$app_dir/.env"
-mkdir -p "$app_dir/data"
-printf 'old-data\n' >"$app_dir/data/rollback-marker.txt"
+mkdir -p "$app_dir/data/app"
+printf 'old-data\n' >"$app_dir/data/app/rollback-marker.txt"
 
 (
     # shellcheck disable=SC2317
@@ -663,7 +747,7 @@ backup_archives=("$SHDOME_BACKUP_DIR/apps/gitea/"*.tar.gz)
 [[ "${#backup_archives[@]}" == "$before_backup_count" ]]
 if find "$SHDOME_BACKUP_DIR/apps/gitea" -mindepth 1 -maxdepth 1 -type d -name '.*' -print -quit | grep -q .; then exit 1; fi
 
-printf 'new-data\n' >"$app_dir/data/rollback-marker.txt"
+printf 'new-data\n' >"$app_dir/data/app/rollback-marker.txt"
 printf 'TEST_SECRET=changed\n' >"$app_dir/.env"
 (
     # shellcheck disable=SC2317
@@ -672,7 +756,7 @@ printf 'TEST_SECRET=changed\n' >"$app_dir/.env"
     app_healthcheck() { :; }
     app_update_restore_snapshot gitea "$rollback_archive" 1
 )
-grep -qx 'old-data' "$app_dir/data/rollback-marker.txt"
+grep -qx 'old-data' "$app_dir/data/app/rollback-marker.txt"
 grep -qx 'TEST_SECRET=original' "$app_dir/.env"
 if find "$SHDOME_APPS_DIR" -mindepth 1 -maxdepth 1 -type d -name '.failed-update-gitea-*' -print -quit | grep -q .; then exit 1; fi
 (
@@ -680,8 +764,8 @@ if find "$SHDOME_APPS_DIR" -mindepth 1 -maxdepth 1 -type d -name '.failed-update
     docker_compose() { :; }
     restore_rollback_dir="$SHDOME_APPS_DIR/.restore-gitea-test"
     mv "$app_dir" "$restore_rollback_dir"
-    mkdir -p "$app_dir/data"
-    printf 'partial-restore\n' >"$app_dir/data/rollback-marker.txt"
+    mkdir -p "$app_dir/data/app"
+    printf 'partial-restore\n' >"$app_dir/data/app/rollback-marker.txt"
     # shellcheck disable=SC2034
     SHDOME_RESTORE_ACTIVE=1
     # shellcheck disable=SC2034
@@ -692,7 +776,7 @@ if find "$SHDOME_APPS_DIR" -mindepth 1 -maxdepth 1 -type d -name '.failed-update
     SHDOME_RESTORE_ROLLBACK_DIR="$restore_rollback_dir"
     app_restore_abort_cleanup
 )
-grep -qx 'old-data' "$app_dir/data/rollback-marker.txt"
+grep -qx 'old-data' "$app_dir/data/app/rollback-marker.txt"
 [[ ! -e "$SHDOME_APPS_DIR/.restore-gitea-test" ]]
 
 metadata_archive="$TEST_ROOT/20260901T000000Z.tar.gz"
@@ -722,7 +806,7 @@ backup_metadata_validate "$metadata_archive" "$metadata_file" "$metadata_nginx" 
 
 inspect_fixture="$TEST_ROOT/docker-inspect.json"
 cat >"$inspect_fixture" <<'JSON'
-[{"Config":{"Labels":{"io.shdome.managed":"true","io.shdome.app-id":"gitea"}},"NetworkSettings":{"Ports":{"3000/tcp":[{"HostPort":"3100"}],"22/tcp":[{"HostPort":"2223"}]}},"State":{"Status":"running"}}]
+[{"Name":"/shdome-gitea","Config":{"Labels":{"io.shdome.managed":"true","io.shdome.app-id":"gitea","io.shdome.service":"app"}},"NetworkSettings":{"Ports":{"3000/tcp":[{"HostPort":"3100"}],"22/tcp":[{"HostPort":"2223"}]}},"State":{"Status":"running"}}]
 JSON
 docker() {
     if [[ "${1:-}" == "inspect" ]]; then cat "$inspect_fixture"; return 0; fi

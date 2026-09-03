@@ -300,7 +300,7 @@ app_switch_access_mode() {
         return
     fi
     if docker_compose -f "$app_dir/compose.yml" -p "shdome-$app_id" up -d && \
-       app_healthcheck "$manifest_file" "$host_port"; then
+       app_healthcheck "$manifest_file" "$ports_json"; then
         if state_set_routing "$app_id" "$access_mode" "$domain"; then
             rm -f -- "$backup"
             return 0

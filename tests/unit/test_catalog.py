@@ -22,23 +22,14 @@ class CatalogTests(unittest.TestCase):
         seen_host_ports = set()
         for path in manifests:
             item = json.loads(path.read_text(encoding="utf-8"))
-            self.assertEqual(item["schema"], 1)
+            self.assertEqual(item["schema"], 2)
             self.assertRegex(item["id"], r"^[a-z0-9][a-z0-9-]{1,62}$")
             self.assertEqual(path.stem, item["id"])
             self.assertNotIn(item["id"], seen_ids)
             seen_ids.add(item["id"])
-            service = item["services"]["app"]
-            self.assertRegex(service["image"], r"^[^:]+:[A-Za-z0-9][A-Za-z0-9._-]+$")
-            if "ports" in item:
-                ports = item["ports"]
-            else:
-                ports = [{
-                    "name": "http",
-                    "containerPort": service["containerPort"],
-                    "defaultHostPort": item["routing"]["defaultHostPort"],
-                    "protocol": "tcp",
-                    "primary": True,
-                }]
+            for service in item["services"].values():
+                self.assertRegex(service["image"], r"^[^:]+:[A-Za-z0-9][A-Za-z0-9._-]+$")
+            ports = item["ports"]
             self.assertEqual(sum(bool(port.get("primary")) for port in ports), 1)
             for port in ports:
                 self.assertTrue(1 <= port["containerPort"] <= 65535)
@@ -55,7 +46,8 @@ class CatalogTests(unittest.TestCase):
     def test_no_mutable_latest_images(self):
         for path in (ROOT / "catalog").glob("*.json"):
             item = json.loads(path.read_text(encoding="utf-8"))
-            self.assertFalse(item["services"]["app"]["image"].endswith(":latest"))
+            for service in item["services"].values():
+                self.assertFalse(service["image"].endswith(":latest"))
 
     def test_logical_backup_adapters_reference_declared_file_volumes(self):
         logical_apps = []
@@ -68,9 +60,10 @@ class CatalogTests(unittest.TestCase):
                 continue
             logical_apps.append(item["id"])
             self.assertEqual(logical["type"], "sqlite")
+            service = item["services"][logical["service"]]
             file_sources = {
                 volume["source"]
-                for volume in item.get("volumes", [])
+                for volume in service.get("volumes", [])
                 if volume.get("type", "directory") == "file"
             }
             self.assertIn(logical["source"], file_sources)
@@ -80,8 +73,19 @@ class CatalogTests(unittest.TestCase):
     def test_three_fixture_apps_share_container_port_only(self):
         fixtures = [json.loads(path.read_text(encoding="utf-8")) for path in (ROOT / "tests/fixtures/multi-app").glob("*.json")]
         self.assertEqual(len(fixtures), 3)
-        self.assertEqual({item["services"]["app"]["containerPort"] for item in fixtures}, {80})
-        self.assertEqual(len({item["routing"]["defaultHostPort"] for item in fixtures}), 3)
+        self.assertEqual({next(port["containerPort"] for port in item["ports"] if port["primary"]) for item in fixtures}, {80})
+        self.assertEqual(len({next(port["defaultHostPort"] for port in item["ports"] if port["primary"]) for item in fixtures}), 3)
+
+    def test_database_redis_and_app_fixture(self):
+        path = ROOT / "tests" / "fixtures" / "multi-container" / "demo-stack.json"
+        item = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(set(item["services"]), {"app", "database", "redis"})
+        self.assertEqual(item["services"]["app"]["dependsOn"], ["database", "redis"])
+        self.assertEqual({port["service"] for port in item["ports"]}, {"app"})
+        self.assertEqual(
+            item["services"]["app"]["secretEnvironment"]["DATABASE_PASSWORD"],
+            item["services"]["database"]["secretEnvironment"]["POSTGRES_PASSWORD"],
+        )
 
 
 if __name__ == "__main__":

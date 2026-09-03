@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "id": "freshrss",
   "name": "FreshRSS",
   "version": "1.29.1",
@@ -10,16 +10,18 @@
     "app": {
       "image": "freshrss/freshrss:1.29.1-alpine",
       "containerName": "shdome-freshrss",
-      "containerPort": 80
+      "environment": {"CRON_MIN": "3,33"},
+      "volumes": [
+        {"source": "data", "target": "/var/www/FreshRSS/data", "type": "directory"},
+        {"source": "extensions", "target": "/var/www/FreshRSS/extensions", "type": "directory"}
+      ]
     }
   },
   "resources": {"diskGB": 1, "memoryMB": 256},
-  "environment": {"CRON_MIN": "3,33"},
-  "volumes": [
-    {"source": "data", "target": "/var/www/FreshRSS/data", "type": "directory"},
-    {"source": "extensions", "target": "/var/www/FreshRSS/extensions", "type": "directory"}
+  "ports": [
+    {"name": "http", "service": "app", "containerPort": 80, "defaultHostPort": 8086, "protocol": "tcp", "primary": true}
   ],
   "backup": {"strategy": "cold-filesystem"},
-  "healthcheck": {"type": "http", "path": "/", "timeoutSeconds": 180},
-  "routing": {"enabled": true, "defaultAccessMode": "direct", "defaultHostPort": 8086}
+  "healthcheck": {"type": "http", "service": "app", "port": "http", "path": "/", "timeoutSeconds": 180},
+  "routing": {"enabled": true, "service": "app", "port": "http", "scheme": "http", "defaultAccessMode": "direct"}
 }

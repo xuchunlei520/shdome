@@ -35,6 +35,7 @@ bash -n "$PACKAGE_ROOT/src/shdome.sh"
 [[ "$(stat -c '%a' "$PACKAGE_ROOT/README.md")" == "644" ]]
 [[ -f "$PACKAGE_ROOT/docs/极简应用市场设计.md" ]]
 [[ -f "$PACKAGE_ROOT/docs/自动镜像源设计.md" ]]
+[[ -f "$PACKAGE_ROOT/开发文档.md" ]]
 [[ -f "$PACKAGE_ROOT/src/modules/app_market/image_source.sh" ]]
 [[ "$(stat -c '%a' "$PACKAGE_ROOT/bin/k")" == "755" ]]
 if find "$PACKAGE_ROOT" -type f -perm /022 -print -quit | grep -q .; then

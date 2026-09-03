@@ -64,7 +64,7 @@ if not logical:
     raise SystemExit(0)
 if logical.get("type") != "sqlite":
     raise SystemExit("unsupported logical backup adapter")
-source = os.path.join(app_dir, "data", logical["source"])
+source = os.path.join(app_dir, "data", logical["service"], logical["source"])
 if not os.path.isfile(source):
     raise SystemExit(f"SQLite backup source is missing: {source}")
 output_dir = os.path.join(stage_dir, "logical")
@@ -88,13 +88,17 @@ PY
 }
 
 app_backup_locked() {
-    local app_id="$1" app_dir backup_dir backup_id archive container_name was_running=0 domain nginx_source
+    local app_id="$1" app_dir backup_dir backup_id archive service_name image container_name container_id image_digest was_running=0 domain nginx_source
     local stage_dir stage_archive stage_checksum stage_nginx stage_metadata final_nginx final_metadata final_checksum nginx_metadata_path=""
     local cert_root="$SHDOME_ROOT/gateway/letsencrypt" logical_dump="" logical_archive_dir
     app_dir="$SHDOME_APPS_DIR/$app_id"
     logical_archive_dir="$app_dir/.shdome-logical"
-    container_name="$(state_get "$app_id" containerName)"
-    [[ "$(docker inspect -f '{{.State.Running}}' "$container_name" 2>/dev/null || true)" == "true" ]] && was_running=1
+    while IFS=$'\t' read -r service_name image container_name container_id image_digest; do
+        if [[ "$(docker inspect -f '{{.State.Running}}' "$container_name" 2>/dev/null || true)" == "true" ]]; then
+            was_running=1
+            break
+        fi
+    done < <(state_services_each "$app_id")
     backup_id="$(date -u +'%Y%m%dT%H%M%SZ')"
     backup_dir="$SHDOME_BACKUP_DIR/apps/$app_id"
     archive="$backup_dir/$backup_id.tar.gz"
@@ -121,7 +125,7 @@ app_backup_locked() {
     SHDOME_BACKUP_WAS_RUNNING="$was_running"
     trap app_backup_abort_cleanup EXIT
     if [[ "$was_running" == "1" ]]; then
-        info "为保证单容器应用数据一致性，备份期间将短暂停止应用"
+        info "为保证应用数据一致性，备份期间将短暂停止全部服务"
         if ! docker_compose -f "$app_dir/compose.yml" -p "shdome-$app_id" stop; then
             app_backup_abort_cleanup
             trap - EXIT
@@ -368,7 +372,7 @@ app_restore_abort_cleanup() {
 }
 
 app_restore_locked() {
-    local app_id="$1" backup_id="$2" assume_yes="$3" archive app_dir rollback_dir host_port manifest_file metadata nginx_backup
+    local app_id="$1" backup_id="$2" assume_yes="$3" archive app_dir rollback_dir manifest_file metadata nginx_backup
     archive="$SHDOME_BACKUP_DIR/apps/$app_id/$backup_id.tar.gz"
     app_dir="$SHDOME_APPS_DIR/$app_id"
     rollback_dir="$SHDOME_APPS_DIR/.restore-$app_id-$$"
@@ -410,9 +414,8 @@ app_restore_locked() {
        [[ -f "$app_dir/compose.yml" && -f "$app_dir/state.json" && -f "$app_dir/manifest.json" ]]; then
         manifest_file="$app_dir/manifest.json"
         if manifest_validate "$manifest_file"; then
-            host_port="$(state_get "$app_id" hostPort)"
             if docker_compose -f "$app_dir/compose.yml" -p "shdome-$app_id" up -d && \
-               app_healthcheck "$manifest_file" "$host_port"; then
+               app_healthcheck "$manifest_file" "$(state_ports_json "$app_id")"; then
                 case "$rollback_dir" in
                     "$SHDOME_APPS_DIR/.restore-$app_id-"*) rm -rf -- "$rollback_dir" ;;
                     *) warn "拒绝删除异常恢复临时目录：$rollback_dir" ;;

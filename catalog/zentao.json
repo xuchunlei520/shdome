@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "id": "zentao",
   "name": "禅道",
   "version": "21.7",
@@ -10,27 +10,32 @@
     "app": {
       "image": "easysoft/zentao:21.7",
       "containerName": "shdome-zentao",
-      "containerPort": 80
+      "environment": {"MYSQL_INTERNAL": "true"},
+      "secretEnvironment": {"ZT_MYSQL_PASSWORD": "ZT_MYSQL_PASSWORD"},
+      "volumes": [
+        {"source": "zentao-data", "target": "/data"}
+      ]
     }
   },
   "resources": {"diskGB": 5, "memoryMB": 2048},
-  "environment": {
-    "MYSQL_INTERNAL": "true"
-  },
   "secrets": [
     {"name": "ZT_MYSQL_PASSWORD", "bytes": 24}
   ],
-  "volumes": [
-    {"source": "zentao-data", "target": "/data"}
+  "ports": [
+    {"name": "http", "service": "app", "containerPort": 80, "defaultHostPort": 8082, "protocol": "tcp", "primary": true}
   ],
   "healthcheck": {
     "type": "http",
+    "service": "app",
+    "port": "http",
     "path": "/",
     "timeoutSeconds": 300
   },
   "routing": {
     "enabled": true,
-    "defaultAccessMode": "direct",
-    "defaultHostPort": 8082
+    "service": "app",
+    "port": "http",
+    "scheme": "http",
+    "defaultAccessMode": "direct"
   }
 }

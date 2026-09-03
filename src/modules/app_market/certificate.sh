@@ -130,6 +130,9 @@ app_access_mode() {
     fi
     SHDOME_ASSUME_YES="$assume_yes" lock_run "app-$app_id" app_switch_access_mode "$app_id" "$access_mode" "$domain" || return
     success "访问模式已切换为 $access_mode"
+    if [[ "$access_mode" == "direct" ]]; then
+        app_show_direct_addresses "$app_id"
+    fi
 }
 
 app_domain_menu() {
@@ -158,7 +161,7 @@ app_domain_menu() {
 
 app_domain_locked() {
     local app_id="$1" domain="$2" email="$3" access_mode="$4" host_port candidate old_domain target transaction_backup="" config_existed=0
-    if ! host_port="$(state_get "$app_id" hostPort)"; then
+    if ! host_port="$(ports_json_primary_host "$(state_ports_json "$app_id")")"; then
         fail "无法读取应用端口状态：$app_id" 65
         return
     fi
@@ -220,6 +223,9 @@ app_domain_locked() {
     certificate_timer_install || warn "证书已签发，但自动续期定时器安装失败；请修复后执行 k app cert renew-all"
     log_event INFO app-domain "$app_id domain=$domain access=$access_mode"
     success "域名已配置：https://$domain"
+    if [[ "$access_mode" == "direct" ]]; then
+        app_show_direct_addresses "$app_id"
+    fi
 }
 
 app_domain_old_config_remove() {
@@ -261,6 +267,7 @@ app_domain_remove_locked() {
     [[ -z "$backup" ]] || rm -f -- "$backup"
     log_event INFO app-domain-remove "$app_id domain=$domain"
     success "已移除域名绑定，应用恢复 IP+端口访问"
+    app_show_direct_addresses "$app_id"
 }
 
 certificate_renew_all() {
@@ -361,7 +368,7 @@ certificate_import_locked() {
     local app_id="$1" domain="$2" cert_source="$3" key_source="$4" access_mode="$5"
     local host_port live_dir cert_temp="" key_temp="" candidate="" old_domain target config_backup="" config_existed=0
     local cert_backup_dir cert_existed=0
-    if ! host_port="$(state_get "$app_id" hostPort)"; then
+    if ! host_port="$(ports_json_primary_host "$(state_ports_json "$app_id")")"; then
         fail "无法读取应用端口状态：$app_id" 65
         return
     fi
@@ -452,6 +459,9 @@ certificate_import_locked() {
     fi
     log_event INFO cert-import "$app_id domain=$domain"
     success "已导入证书并配置：https://$domain"
+    if [[ "$access_mode" == "direct" ]]; then
+        app_show_direct_addresses "$app_id"
+    fi
     warn "导入证书没有 ACME 续期配置，到期前请重新导入"
 }
 
