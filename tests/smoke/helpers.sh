@@ -235,13 +235,16 @@ for invalid_mirror in \
 done
 
 image_source_config_write official ""
-[[ "$(image_source_policy_rows_safe | head -n 1)" == $'POLICY\tofficial\t' ]]
+policy_rows="$(image_source_policy_rows_safe)"
+[[ "$(head -n 1 <<<"$policy_rows")" == $'POLICY\tofficial\t' ]]
 [[ "$(image_source_pull_order)" == $'官方源\tofficial\t' ]]
 image_source_command set https://manual.example.com >/dev/null
-[[ "$(image_source_policy_rows_safe | head -n 1)" == $'POLICY\tmanual\thttps://manual.example.com' ]]
+policy_rows="$(image_source_policy_rows_safe)"
+[[ "$(head -n 1 <<<"$policy_rows")" == $'POLICY\tmanual\thttps://manual.example.com' ]]
 [[ "$(stat -c '%a' "$SHDOME_IMAGE_SOURCE_CONFIG")" == "640" ]]
 image_source_command auto >/dev/null
-[[ "$(image_source_policy_rows_safe | head -n 1)" == $'POLICY\tauto\t' ]]
+policy_rows="$(image_source_policy_rows_safe)"
+[[ "$(head -n 1 <<<"$policy_rows")" == $'POLICY\tauto\t' ]]
 printf '%s\n' '{"schema":1,"mode":"auto","manualMirror":"","mirrors":["http://unsafe.example.com"]}' >"$SHDOME_IMAGE_SOURCE_CONFIG"
 image_source_config_write auto ""
 python3 -c 'import json,sys; value=json.load(open(sys.argv[1])); assert value["mirrors"] == []' "$SHDOME_IMAGE_SOURCE_CONFIG"
@@ -260,7 +263,8 @@ python3 -c 'import json,sys; value=json.load(open(sys.argv[1])); assert value["m
             *) return 1 ;;
         esac
     }
-    [[ "$(image_source_pull_order | head -n 1)" == $'官方源\tofficial\t100' ]]
+    fast_order="$(image_source_pull_order)"
+    [[ "$(head -n 1 <<<"$fast_order")" == $'官方源\tofficial\t100' ]]
     [[ "$(wc -l <"$probe_log")" == "1" ]]
 )
 (
@@ -414,7 +418,10 @@ custom_manifest_install "$custom_candidate" 1
 app_list_json | python3 -c 'import json,sys; value=json.load(sys.stdin); item=next(x for x in value if x["id"] == "custom-demo"); assert item["source"] == "custom" and item["ports"][0]["defaultHostPort"] == 18090'
 custom_validate custom-demo >/dev/null
 custom_export custom-demo "$TEST_ROOT/custom-export.json" >/dev/null
-cmp "$SHDOME_CUSTOM_CATALOG_DIR/custom-demo.json" "$TEST_ROOT/custom-export.json"
+python3 - "$SHDOME_CUSTOM_CATALOG_DIR/custom-demo.json" "$TEST_ROOT/custom-export.json" <<'PY'
+import pathlib, sys
+assert pathlib.Path(sys.argv[1]).read_bytes() == pathlib.Path(sys.argv[2]).read_bytes()
+PY
 if custom_manifest_install "$PROJECT_DIR/catalog/uptime-kuma.json" 1 >/dev/null 2>&1; then exit 1; fi
 mkdir -p "$SHDOME_APPS_DIR/custom-demo"
 printf '{}\n' >"$SHDOME_APPS_DIR/custom-demo/state.json"
